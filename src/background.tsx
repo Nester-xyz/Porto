@@ -14,8 +14,8 @@ chrome.action.onClicked.addListener(async () => {
   const window = await chrome.windows.create({
     url: "popup.html",
     type: "popup",
-    width: 40,
-    height: 30,
+    width: 500,
+    height: 300,
     focused: true,
   });
 
