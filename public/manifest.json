@@ -4,13 +4,12 @@
   "version": "1.0.0",
   "description": "A basic Chrome extension starter using Vite and TypeScript.",
   "action": {
-    "default_popup": "popup.html",
     "default_icon": "icon.png"
   },
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": [],
+  "permissions": ["tabs", "activeTab", "windows"],
   "icons": {
     "32": "icon.png"
   }

@@ -11,7 +11,6 @@ const App = () => {
   };
   return (
     <div>
-      <button> Login </button>
       <h1>Popup Page</h1>
       <button onClick={handleClick}>Send Message to Background</button>
       <p>{response}</p>

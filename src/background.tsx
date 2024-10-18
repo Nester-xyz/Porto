@@ -1,11 +1,36 @@
-// src/background.ts
-
-// Ensure TypeScript recognizes the chrome namespace
 /// <reference types="chrome" />
 
-console.log("Background script running.");
+let windowId: number | null = null;
 
-// Example: Listen for a message from the popup
+chrome.action.onClicked.addListener(async () => {
+  if (windowId !== null) {
+    const window = await chrome.windows.get(windowId);
+    if (window) {
+      chrome.windows.update(windowId, { focused: true });
+      return;
+    }
+  }
+
+  const window = await chrome.windows.create({
+    url: "popup.html",
+    type: "popup",
+    width: 40,
+    height: 30,
+    focused: true,
+  });
+
+  // Store the window ID
+  windowId = window.id || null;
+
+  // Listen for window close
+  chrome.windows.onRemoved.addListener((removedWindowId) => {
+    if (removedWindowId === windowId) {
+      windowId = null;
+    }
+  });
+});
+
+// Handle messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "sayHello") {
     console.log("Hello from the background script!");
