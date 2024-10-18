@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import "./popup.css";
 
 const App = () => {
@@ -9,7 +9,6 @@ const App = () => {
       setResponse(res.response);
     });
   };
-
   return (
     <div>
       <button> Login </button>
