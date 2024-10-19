@@ -14,5 +14,5 @@ export interface LogInContextType {
   loggedIn: boolean;
   login: Tlogin;
   signOut: () => void;
-  agent: AtpAgent | null;
+  agent: AtpAgent | undefined;
 }

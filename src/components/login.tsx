@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,12 +6,39 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HiEye } from "react-icons/hi";
 import { HiEyeSlash } from "react-icons/hi2";
 import { BsFillInfoCircleFill } from "react-icons/bs";
+import AtpAgent, { AtpSessionData, AtpSessionEvent } from "@atproto/api";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
   const [showToolTip, setShowToolTip] = useState(false);
+  const [loggedInSuccess, setLoggedInSuccess] = useState<boolean>(false);
+  const [agent, setAgent] = useState<AtpAgent | null>(null);
+
+  // Initialize agent only once when component mounts
+  useEffect(() => {
+    if (!agent) {
+      const agentInstance = new AtpAgent({
+        service: "https://bsky.social",
+        persistSession: (evt: AtpSessionEvent, sess?: AtpSessionData) => {
+          if (!sess) return;
+
+          // Store session data
+          localStorage.setItem("handle", sess.handle);
+          localStorage.setItem("accessJWT", sess.accessJwt);
+          localStorage.setItem("refreshJWT", sess.refreshJwt);
+          localStorage.setItem("did", sess.did);
+
+          setLoggedInSuccess(true);
+
+          // Chrome storage update
+        },
+      });
+
+      setAgent(agentInstance);
+    }
+  }, []); // Empty dependency array ensures this runs only once
 
   const appPasswordRoute = () => {
     window.open(
@@ -25,7 +52,6 @@ const Login = () => {
       alert("Please fill in both the username and password.");
     } else {
       console.log("Logging in with:", { userName, password });
-      // Proceed with login logic here, e.g., API call
     }
   };
 

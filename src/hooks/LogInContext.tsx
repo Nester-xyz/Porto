@@ -5,7 +5,7 @@ import { login } from "../lib/auth/login";
 import { LogInContextType } from "../types/login.type";
 
 const [loggedIn, setLoggedIn] = useState<boolean>(false);
-const [agent, setAgent] = useState<AtpAgent | null>(null);
+const [agent, setAgent] = useState<AtpAgent | undefined>(undefined);
 
 const signOut = () => {};
 
@@ -26,7 +26,7 @@ export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    validate;
+    validate();
   }, []);
 
   return (
