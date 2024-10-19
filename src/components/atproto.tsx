@@ -1,5 +1,5 @@
-import { AtpAgent, AtpSessionEvent, AtpSessionData } from '@atproto/api'
-import { useCallback, useEffect, useState } from 'react';
+import { AtpAgent, AtpSessionEvent, AtpSessionData } from "@atproto/api";
+import { useCallback, useEffect, useState } from "react";
 
 const AtProto = () => {
   const [loggedInSuccess, setLoggedInSuccess] = useState<boolean>(false);
@@ -9,7 +9,7 @@ const AtProto = () => {
   useEffect(() => {
     if (!agent) {
       const agentInstance = new AtpAgent({
-        service: 'https://bsky.social',
+        service: "https://bsky.social",
         persistSession: (evt: AtpSessionEvent, sess?: AtpSessionData) => {
           if (!sess) return;
 
@@ -22,7 +22,6 @@ const AtProto = () => {
           setLoggedInSuccess(true);
 
           // Chrome storage update
-
         },
       });
 
@@ -36,7 +35,7 @@ const AtProto = () => {
     try {
       await agent.login({
         identifier: "<your-identifier-here>",
-        password: "<your-password>"
+        password: "<your-password>",
       });
       console.log("successfully logged in");
     } catch (error) {
@@ -48,7 +47,7 @@ const AtProto = () => {
     if (!agent) return;
 
     try {
-      const did = localStorage.getItem('did');
+      const did = localStorage.getItem("did");
       if (!did) {
         console.log("No DID found in localStorage");
         return;
@@ -56,10 +55,10 @@ const AtProto = () => {
       const res3 = await agent.app.bsky.feed.post.create(
         { repo: did },
         {
-          text: 'Time travelling is fun right now!',
+          text: "Time travelling is fun right now!",
           createdAt: "1990-01-01T00:00:00.000Z",
         },
-      )
+      );
       console.log("posted", res3);
     } catch (error) {
       console.log("error posting:", error);

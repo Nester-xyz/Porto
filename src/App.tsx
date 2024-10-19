@@ -1,9 +1,8 @@
-import React, { useEffect } from "react";
-import AtProto from "./components/atproto";
-import "./popup.css";
+import { useState } from "react";
+import Login from "./components/login";
 
 const App = () => {
-  const [response, setResponse] = React.useState("");
+  const [response, setResponse] = useState("");
 
   const handleClick = () => {
     chrome.runtime.sendMessage({ action: "sayHello" }, (res) => {
@@ -13,12 +12,13 @@ const App = () => {
   return (
     <div>
       <h1>Popup Page</h1>
-      <AtProto />
-      <button onClick={handleClick} className="btn-primary">Send Message to Background</button>
+      <Login />
+      <button onClick={handleClick} className="bg-red-300">
+        Send Message to Background
+      </button>
       <p>{response}</p>
-      
     </div>
-  )
+  );
 };
 
 export default App;
