@@ -22,7 +22,7 @@ export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const validate = async () => {
       if (!agent) {
-        const agentInstance = await ValidateUser(agent);
+        const agentInstance = await ValidateUser(agent, loggedIn);
         setAgent(agentInstance.agent);
         setLoggedIn(agentInstance.loggedInSuccess);
       }

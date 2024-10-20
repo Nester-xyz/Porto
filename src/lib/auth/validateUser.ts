@@ -11,7 +11,7 @@ interface ValidateUserResult {
  * @param agent - Optional existing ATP agent instance
  * @returns Object containing login status and agent instance
  */
-export const ValidateUser = async (agent: AtpAgent | null): Promise<ValidateUserResult> => {
+export const ValidateUser = async (agent: AtpAgent | null, loggedInSuccess: boolean): Promise<ValidateUserResult> => {
   try {
     // If agent already exists, validate it's properly initialized
     if (agent) {
@@ -19,7 +19,7 @@ export const ValidateUser = async (agent: AtpAgent | null): Promise<ValidateUser
         throw new Error("Invalid agent: missing service URL");
       }
       return {
-        loggedInSuccess: true,
+        loggedInSuccess,
         agent
       };
     }
@@ -34,9 +34,10 @@ export const ValidateUser = async (agent: AtpAgent | null): Promise<ValidateUser
     const agentInstance = new AtpAgent({
       service: "https://bsky.social",
       persistSession: (evt: AtpSessionEvent, sess?: AtpSessionData) => {
+
+        console.log(sess);
         if (!sess) {
           // Clear stored session data if session is null
-          console.log(sess);
           localStorage.removeItem("handle");
           localStorage.removeItem("accessJWT");
           localStorage.removeItem("refreshJWT");
@@ -79,10 +80,4 @@ export const ValidateUser = async (agent: AtpAgent | null): Promise<ValidateUser
   }
 };
 
-// Example usage:
-// const { loggedInSuccess, agent, error } = await ValidateUser(null);
-// if (error) {
-//   console.error("Authentication error:", error);
-// } else if (loggedInSuccess) {
-//   console.log("Successfully authenticated with handle:", agent.session?.handle);
-// }
+

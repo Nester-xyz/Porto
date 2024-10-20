@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { HiEyeSlash } from "react-icons/hi2";
 import { BsFillInfoCircleFill } from "react-icons/bs";
 import { CgDanger } from "react-icons/cg";
 import { useLogInContext } from "@/hooks/LogInContext";
-
+import Home from "./pages/Home/home";
 
 const Login = () => {
 
@@ -18,8 +18,12 @@ const Login = () => {
   const [showToolTip, setShowToolTip] = useState(false);
   const [error, setError] = useState<string>("");
 
-  const { agent } = useLogInContext();
+  const { agent, loggedIn } = useLogInContext();
 
+
+  useEffect(() => {
+    console.log(loggedIn);
+  }, [loggedIn]);
   const onLogin = async () => {
     if (!agent) return;
 
@@ -50,6 +54,8 @@ const Login = () => {
       onLogin();
     }
   };
+
+  // if (loggedIn) { return<> <Home /> </>}
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">

@@ -20,8 +20,13 @@ const Home = () => {
     max_date: undefined
   });
   const ApiDelay = 2500;
+  const BLUESKY_USERNAME = "khadgaprasadoli"
 
-  const tweet_to_bsky = () => {
+  const tweet_to_bsky = async () => {
+    if (!agent) {
+      console.log("No agent found");
+      return;
+    }
     console.log("initiated");
     console.log(`Import started at ${new Date().toISOString()}`);
     console.log(`simulate is ${simulate ? "ON" : "OFF"}`);
