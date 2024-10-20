@@ -1,11 +1,34 @@
+import { useLogInContext } from "@/hooks/LogInContext";
+import { RichText } from "@atproto/api";
+import { cleanTweetText } from "@/lib/parse/parse";
+import * as dotenv from "dotenv";
+import { useState } from 'react'
+import FS from "fs";
+import * as process from "process";
+dotenv.config();
+
+
+interface DateRange {
+  min_date: Date | undefined;
+  max_date: Date | undefined;
+}
 const Home = () => {
+  const { agent } = useLogInContext();
+  const [simulate, setSimulate] = useState(false);
+  const [archiveFolder, setArchiveFolder] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange>({
+    min_date: undefined,
+    max_date: undefined
+  });
+  const ApiDelay = 2500;
+
   const tweet_to_bsky = () => {
     console.log("initiated");
     console.log(`Import started at ${new Date().toISOString()}`);
-    console.log(`SIMULATE is ${SIMULATE ? "ON" : "OFF"}`);
+    console.log(`simulate is ${simulate ? "ON" : "OFF"}`);
 
     const fTweets = FS.readFileSync(
-      process.env.ARCHIVE_FOLDER + "/data/tweets.js",
+      archiveFolder + "/data/tweets.js",
     );
 
     const tweets = JSON.parse(
@@ -13,7 +36,7 @@ const Home = () => {
     );
     let importedTweet = 0;
     if (tweets != null && tweets.length > 0) {
-      const sortedTweets = tweets.sort((a, b) => {
+      const sortedTweets = tweets.sort((a: any, b: any) => {
         let ad = new Date(a.tweet.created_at).getTime();
         let bd = new Date(b.tweet.created_at).getTime();
         return ad - bd;
@@ -25,8 +48,8 @@ const Home = () => {
         const tweet_createdAt = tweetDate.toISOString();
 
         //this cheks assume that the array is sorted by date (first the oldest)
-        if (MIN_DATE != undefined && tweetDate < MIN_DATE) continue;
-        if (MAX_DATE != undefined && tweetDate > MAX_DATE) break;
+        if (dateRange.min_date != undefined && tweetDate < dateRange.min_date) continue;
+        if (dateRange.max_date != undefined && tweetDate > dateRange.max_date) break;
 
         // if (tweet.id != "1237000612639846402")
         //     continue;
@@ -83,11 +106,11 @@ const Home = () => {
                 break;
               }
 
-              const mediaFilename = `${process.env.ARCHIVE_FOLDER}/data/tweets_media/${tweet.id}-${media?.media_url.substring(i + 1)}`;
+              const mediaFilename = `${ARCHIVE_FOLDER}/data/tweets_media/${tweet.id}-${media?.media_url.substring(i + 1)}`;
               const imageBuffer = FS.readFileSync(mediaFilename);
 
-              if (!SIMULATE) {
-                const blobRecord = await agent.uploadBlob(imageBuffer, {
+              if (!simulate) {
+                const blobRecord = await agent!.uploadBlob(imageBuffer, {
                   encoding: mimeType,
                 });
 
@@ -116,7 +139,7 @@ const Home = () => {
         }
 
         let postText = tweet.full_text as string;
-        if (!SIMULATE) {
+        if (!simulate) {
           postText = await cleanTweetText(tweet.full_text);
 
           if (postText.length > 300) postText = tweet.full_text;
@@ -143,15 +166,15 @@ const Home = () => {
               : undefined,
         };
 
-        if (!SIMULATE) {
+        if (!simulate) {
           //I wait 3 seconds so as not to exceed the api rate limits
-          await new Promise((resolve) => setTimeout(resolve, API_DELAY));
+          await new Promise((resolve) => setTimeout(resolve, ApiDelay));
 
-          const recordData = await agent.post(postRecord);
+          const recordData = await agent!.post(postRecord);
           const i = recordData.uri.lastIndexOf("/");
           if (i > 0) {
             const rkey = recordData.uri.substring(i + 1);
-            const postUri = `https://bsky.app/profile/${process.env.BLUESKY_USERNAME!}/post/${rkey}`;
+            const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME!}/post/${rkey}`;
             console.log("Bluesky post create, URL: " + postUri);
 
             importedTweet++;
@@ -164,10 +187,10 @@ const Home = () => {
       }
     }
 
-    if (SIMULATE) {
+    if (simulate) {
       // In addition to the delay in AT Proto API calls, we will also consider a 5% delta for URL resolution calls
       const minutes =
-        Math.round((importedTweet * API_DELAY) / 1000 / 60) + 1 / 0.1;
+        Math.round((importedTweet * ApiDelay) / 1000 / 60) + 1 / 0.1;
       const hours = Math.floor(minutes / 60);
       const min = minutes % 60;
       console.log(
@@ -184,5 +207,6 @@ const Home = () => {
       <button onClick={tweet_to_bsky}> Buton </button>
     </div>
   );
+
 };
 export default Home;

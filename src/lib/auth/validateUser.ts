@@ -36,6 +36,7 @@ export const ValidateUser = async (agent: AtpAgent | null): Promise<ValidateUser
       persistSession: (evt: AtpSessionEvent, sess?: AtpSessionData) => {
         if (!sess) {
           // Clear stored session data if session is null
+          console.log(sess);
           localStorage.removeItem("handle");
           localStorage.removeItem("accessJWT");
           localStorage.removeItem("refreshJWT");

@@ -1,21 +1,10 @@
 import * as dotenv from "dotenv";
 import { https } from "follow-redirects";
-import FS from "fs";
 import * as process from "process";
 import URI from "urijs";
 import he from "he";
 
-import { BskyAgent, RichText } from "@atproto/api";
 
-dotenv.config();
-
-const agent = new BskyAgent({
-  service: "https://bsky.social",
-});
-
-const SIMULATE = process.env.SIMULATE === "1";
-
-const API_DELAY = 2500; // https://docs.bsky.app/docs/advanced-guides/rate-limits
 
 const PAST_HANDLES = process.env.TWITTER_HANDLE?.split(",");
 
@@ -40,7 +29,7 @@ async function resolveShorURL(url: string): Promise<string> {
   });
 }
 
-async function cleanTweetText(tweetFullText: string): Promise<string> {
+export async function cleanTweetText(tweetFullText: string): Promise<string> {
   let newText = tweetFullText;
   const urls: string[] = [];
   URI.withinString(tweetFullText, (url, start, end, source) => {
@@ -76,7 +65,7 @@ async function cleanTweetText(tweetFullText: string): Promise<string> {
 
   return newText;
 }
-
+/*
 async function main() {
   console.log(`Import started at ${new Date().toISOString()}`);
   console.log(`SIMULATE is ${SIMULATE ? "ON" : "OFF"}`);
@@ -263,3 +252,4 @@ async function main() {
 }
 
 main();
+*/

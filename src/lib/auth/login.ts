@@ -1,5 +1,4 @@
 import AtpAgent from "@atproto/api";
-
 type loginProps = {
   agent: AtpAgent;
   identifier: string;
