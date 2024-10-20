@@ -1,10 +1,8 @@
 import { useLogInContext } from "@/hooks/LogInContext";
 import { RichText } from "@atproto/api";
 import { cleanTweetText } from "@/lib/parse/parse";
-import * as dotenv from "dotenv";
 import { useState } from "react";
 import FS from "fs";
-dotenv.config();
 
 interface DateRange {
   min_date: Date | undefined;
@@ -23,28 +21,32 @@ const Home = () => {
   const ApiDelay = 2500;
   const BLUESKY_USERNAME = "khadgaprasadoli";
 
+
   const tweet_to_bsky = async () => {
-    if (!agent) {
-      console.log("No agent found");
-      return;
-    }
-    console.log("initiated");
-    console.log(`Import started at ${new Date().toISOString()}`);
-    console.log(`simulate is ${simulate ? "ON" : "OFF"}`);
+    try {
+      if (!agent) {
+        console.log("No agent found");
+        return;
+      }
+      console.log("initiated");
+      console.log(`Import started at ${new Date().toISOString()}`);
+      console.log(`simulate is ${simulate ? "ON" : "OFF"}`);
 
-    const fTweets = FS.readFileSync(archiveFolder + "/data/tweets.js");
+      const fTweets = FS.readFileSync(archiveFolder + "/data/tweets.js");
 
-    const tweets = JSON.parse(
-      fTweets.toString().replace("window.YTD.tweets.part0 = [", "["),
-    );
-    let importedTweet = 0;
-    if (tweets != null && tweets.length > 0) {
-      const sortedTweets = tweets.sort((a: any, b: any) => {
-        let ad = new Date(a.tweet.created_at).getTime();
-        let bd = new Date(b.tweet.created_at).getTime();
-        return ad - bd;
-      });
+      const tweets = JSON.parse(
+        fTweets.toString().replace("window.YTD.tweets.part0 = [", "["),
+      );
 
+      let importedTweet = 0;
+      let sortedTweets;
+      if (tweets != null && tweets.length > 0) {
+        sortedTweets = tweets.sort((a: any, b: any) => {
+          let ad = new Date(a.tweet.created_at).getTime();
+          let bd = new Date(b.tweet.created_at).getTime();
+          return ad - bd;
+        });
+      }
       for (let index = 0; index < sortedTweets.length; index++) {
         const tweet = sortedTweets[index].tweet;
         const tweetDate = new Date(tweet.created_at);
@@ -76,6 +78,8 @@ const Home = () => {
           continue;
         }
 
+        //works
+        //
         let tweetWithEmbeddedVideo = false;
         let embeddedImage = [] as any;
         if (tweet.extended_entities?.media) {
@@ -138,6 +142,7 @@ const Home = () => {
           }
         }
 
+        //TODO fix this works above 
         if (tweetWithEmbeddedVideo) {
           console.log("Discarded (containnig videos)");
           continue;
@@ -155,61 +160,16 @@ const Home = () => {
           if (tweet.full_text != postText)
             console.log(` Clean text '${postText}'`);
         }
-
-        const rt = new RichText({
-          text: postText,
-        });
-        await rt.detectFacets(agent);
-        const postRecord = {
-          $type: "app.bsky.feed.post",
-          text: rt.text,
-          facets: rt.facets,
-          createdAt: tweet_createdAt,
-          embed:
-            embeddedImage.length > 0
-              ? { $type: "app.bsky.embed.images", images: embeddedImage }
-              : undefined,
-        };
-
-        if (!simulate) {
-          //I wait 3 seconds so as not to exceed the api rate limits
-          await new Promise((resolve) => setTimeout(resolve, ApiDelay));
-
-          const recordData = await agent!.post(postRecord);
-          const i = recordData.uri.lastIndexOf("/");
-          if (i > 0) {
-            const rkey = recordData.uri.substring(i + 1);
-            const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME!}/post/${rkey}`;
-            console.log("Bluesky post create, URL: " + postUri);
-
-            importedTweet++;
-          } else {
-            console.warn(recordData);
-          }
-        } else {
-          importedTweet++;
-        }
       }
     }
-
-    if (simulate) {
-      // In addition to the delay in AT Proto API calls, we will also consider a 5% delta for URL resolution calls
-      const minutes =
-        Math.round((importedTweet * ApiDelay) / 1000 / 60) + 1 / 0.1;
-      const hours = Math.floor(minutes / 60);
-      const min = minutes % 60;
-      console.log(
-        `Estimated time for real import: ${hours} hours and ${min} minutes`,
-      );
+    catch (error) {
+      console.log(error);
     }
-
-    console.log(
-      `Import finished at ${new Date().toISOString()}, imported ${importedTweet} tweets`,
-    );
   };
+
   return (
     <div>
-      <button onClick={tweet_to_bsky}> Buton </button>
+      <button onClick={() => { tweet_to_bsky() }}> Buton post </button>
     </div>
   );
 };

@@ -12,7 +12,6 @@ import Home from "./pages/Home/home";
 import Page from "./pages/Home/page";
 
 const Login = () => {
-
   const [showPassword, setShowPassword] = useState(false);
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
@@ -21,12 +20,14 @@ const Login = () => {
 
   const { agent, loggedIn, setLoggedIn } = useLogInContext();
 
-
   useEffect(() => {
     console.log("useeffect", loggedIn);
   }, [loggedIn]);
   const onLogin = async () => {
-    if (!agent) { console.log("no agent", agent); return };
+    if (!agent) {
+      console.log("no agent", agent);
+      return;
+    }
 
     console.log(agent);
     try {
@@ -61,7 +62,14 @@ const Login = () => {
     }
   };
 
-  if (loggedIn) { return <> <Page /> </> }
+  if (loggedIn) {
+    return (
+      <>
+        {" "}
+        <Home />{" "}
+      </>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">

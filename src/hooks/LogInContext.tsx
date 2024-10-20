@@ -5,8 +5,8 @@ import { LogInContextType } from "../types/login.type";
 // Create context with a default value
 export const LogInContext = createContext<LogInContextType>({
   loggedIn: false,
-  setLoggedIn: () => { },
-  signOut: () => { },
+  setLoggedIn: () => {},
+  signOut: () => {},
   agent: null,
 });
 
