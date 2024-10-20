@@ -8,6 +8,7 @@ import { HiEyeSlash } from "react-icons/hi2";
 import { BsFillInfoCircleFill } from "react-icons/bs";
 import { CgDanger } from "react-icons/cg";
 import AtpAgent, { AtpSessionData, AtpSessionEvent } from "@atproto/api";
+import { ValidateUser } from "@/lib/auth/validateUser";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -20,27 +21,15 @@ const Login = () => {
 
   // Initialize agent only once when component mounts
   useEffect(() => {
-    if (!agent) {
-      const agentInstance = new AtpAgent({
-        service: "https://bsky.social",
-        persistSession: (evt: AtpSessionEvent, sess?: AtpSessionData) => {
-          if (!sess) return;
-
-          // Store session data
-          localStorage.setItem("handle", sess.handle);
-          localStorage.setItem("accessJWT", sess.accessJwt);
-          localStorage.setItem("refreshJWT", sess.refreshJwt);
-          localStorage.setItem("did", sess.did);
-
-          setLoggedInSuccess(true);
-
-          // Chrome storage update
-        },
-      });
-
-      setAgent(agentInstance);
-    }
-  }, []); // Empty dependency array ensures this runs only once
+    const validate = async () => {
+      if (!agent) {
+        const agentInstance = await ValidateUser(agent);
+        setAgent(agentInstance.agent);
+        setLoggedInSuccess(agentInstance.loggedInSuccess);
+      }
+    };
+    validate();
+  }, []);
 
   const login = async () => {
     if (!agent) return;
