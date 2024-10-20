@@ -12,7 +12,6 @@ type Tlogin = ({
 
 export interface LogInContextType {
   loggedIn: boolean;
-  login: Tlogin;
   signOut: () => void;
-  agent: AtpAgent | undefined;
+  agent: AtpAgent | null;
 }

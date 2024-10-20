@@ -1,29 +1,87 @@
 import { AtpAgent, AtpSessionData, AtpSessionEvent } from "@atproto/api";
 
-export const ValidateUser = async (agent: AtpAgent | null) => {
-  let loggedInSuccess = false;
-  let returnableAgent = agent;
-  if (!agent) {
+interface ValidateUserResult {
+  loggedInSuccess: boolean;
+  agent: AtpAgent;
+  error?: string;
+}
+
+/**
+ * Validates and manages Bluesky user authentication
+ * @param agent - Optional existing ATP agent instance
+ * @returns Object containing login status and agent instance
+ */
+export const ValidateUser = async (agent: AtpAgent | null): Promise<ValidateUserResult> => {
+  try {
+    // If agent already exists, validate it's properly initialized
+    if (agent) {
+      if (!agent.service) {
+        throw new Error("Invalid agent: missing service URL");
+      }
+      return {
+        loggedInSuccess: true,
+        agent
+      };
+    }
+
+    // Get stored session data
+    const storedHandle = localStorage.getItem("handle");
+    const storedAccessJWT = localStorage.getItem("accessJWT");
+    const storedRefreshJWT = localStorage.getItem("refreshJWT");
+    const storedDid = localStorage.getItem("did");
+
+    // Create new agent instance
     const agentInstance = new AtpAgent({
       service: "https://bsky.social",
-      persistSession: (_: AtpSessionEvent, sess?: AtpSessionData) => {
-        if (!sess) return;
+      persistSession: (evt: AtpSessionEvent, sess?: AtpSessionData) => {
+        if (!sess) {
+          // Clear stored session data if session is null
+          localStorage.removeItem("handle");
+          localStorage.removeItem("accessJWT");
+          localStorage.removeItem("refreshJWT");
+          localStorage.removeItem("did");
+          return;
+        }
 
-        // Store session data
-        localStorage.setItem("handle", sess.handle);
-        localStorage.setItem("accessJWT", sess.accessJwt);
-        localStorage.setItem("refreshJWT", sess.refreshJwt);
-        localStorage.setItem("did", sess.did);
+        try {
+          // Validate session data
+          if (!sess.handle || !sess.accessJwt || !sess.refreshJwt || !sess.did) {
+            throw new Error("Invalid session data received");
+          }
 
-        loggedInSuccess = true;
+          // Store session data
+          localStorage.setItem("handle", sess.handle);
+          localStorage.setItem("accessJWT", sess.accessJwt);
+          localStorage.setItem("refreshJWT", sess.refreshJwt);
+          localStorage.setItem("did", sess.did);
+        } catch (error) {
+          console.error("Error persisting session:", error);
+          throw error;
+        }
       },
     });
 
-    returnableAgent = agentInstance;
-  }
 
-  return {
-    loggedInSuccess,
-    agent: returnableAgent,
-  };
+
+    return {
+      loggedInSuccess: Boolean(agentInstance.session),
+      agent: agentInstance,
+    };
+
+  } catch (error) {
+    console.error("ValidateUser error:", error);
+    return {
+      loggedInSuccess: false,
+      agent: new AtpAgent({ service: "https://bsky.social" }),
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
 };
+
+// Example usage:
+// const { loggedInSuccess, agent, error } = await ValidateUser(null);
+// if (error) {
+//   console.error("Authentication error:", error);
+// } else if (loggedInSuccess) {
+//   console.log("Successfully authenticated with handle:", agent.session?.handle);
+// }
