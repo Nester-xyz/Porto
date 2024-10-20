@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HiEye } from "react-icons/hi";
 import { HiEyeSlash } from "react-icons/hi2";
 import { BsFillInfoCircleFill } from "react-icons/bs";
+import { CgDanger } from "react-icons/cg";
 import AtpAgent, { AtpSessionData, AtpSessionEvent } from "@atproto/api";
 
 const Login = () => {
@@ -15,6 +16,7 @@ const Login = () => {
   const [showToolTip, setShowToolTip] = useState(false);
   const [loggedInSuccess, setLoggedInSuccess] = useState<boolean>(false);
   const [agent, setAgent] = useState<AtpAgent | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Initialize agent only once when component mounts
   useEffect(() => {
@@ -40,6 +42,21 @@ const Login = () => {
     }
   }, []); // Empty dependency array ensures this runs only once
 
+  const login = async () => {
+    if (!agent) return;
+
+    console.log(agent);
+    try {
+      const user = await agent.login({
+        identifier: userName.toString(),
+        password: password.toString(),
+      });
+    } catch (error) {
+      console.log("Error logging in:", error);
+      setError("Invalid username or password");
+    }
+  };
+
   const appPasswordRoute = () => {
     window.open(
       "https://github.com/bluesky-social/atproto-ecosystem/blob/main/app-passwords.md",
@@ -52,6 +69,7 @@ const Login = () => {
       alert("Please fill in both the username and password.");
     } else {
       console.log("Logging in with:", { userName, password });
+      login();
     }
   };
 
@@ -63,6 +81,18 @@ const Login = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {/* Error */}
+            <div className="flex flex-col gap-1">
+              {error && (
+                <div
+                  id="error"
+                  className="mt-1 text-sm text-red-600 bg-red-100 border border-red-400 rounded-md p-2 flex items-center"
+                >
+                  <CgDanger />
+                  {error}
+                </div>
+              )}
+            </div>
             {/* Username Input */}
             <div className="flex flex-col gap-1">
               <Label htmlFor="userName">UserName</Label>
