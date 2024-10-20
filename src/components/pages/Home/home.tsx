@@ -2,10 +2,9 @@ import { useLogInContext } from "@/hooks/LogInContext";
 import { RichText } from "@atproto/api";
 import { cleanTweetText } from "@/lib/parse/parse";
 import * as dotenv from "dotenv";
-import { useState } from 'react'
+import { useState } from "react";
 import FS from "fs";
 dotenv.config();
-
 
 interface DateRange {
   min_date: Date | undefined;
@@ -14,13 +13,15 @@ interface DateRange {
 const Home = () => {
   const { agent } = useLogInContext();
   const [simulate, setSimulate] = useState(false);
-  const [archiveFolder, setArchiveFolder] = useState("/home/yogesharyal/Downloads/twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9");
+  const [archiveFolder, setArchiveFolder] = useState(
+    "/home/yogesharyal/Downloads/twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9",
+  );
   const [dateRange, setDateRange] = useState<DateRange>({
     min_date: undefined,
-    max_date: undefined
+    max_date: undefined,
   });
   const ApiDelay = 2500;
-  const BLUESKY_USERNAME = "khadgaprasadoli"
+  const BLUESKY_USERNAME = "khadgaprasadoli";
 
   const tweet_to_bsky = async () => {
     if (!agent) {
@@ -31,9 +32,7 @@ const Home = () => {
     console.log(`Import started at ${new Date().toISOString()}`);
     console.log(`simulate is ${simulate ? "ON" : "OFF"}`);
 
-    const fTweets = FS.readFileSync(
-      archiveFolder + "/data/tweets.js",
-    );
+    const fTweets = FS.readFileSync(archiveFolder + "/data/tweets.js");
 
     const tweets = JSON.parse(
       fTweets.toString().replace("window.YTD.tweets.part0 = [", "["),
@@ -52,8 +51,10 @@ const Home = () => {
         const tweet_createdAt = tweetDate.toISOString();
 
         //this cheks assume that the array is sorted by date (first the oldest)
-        if (dateRange.min_date != undefined && tweetDate < dateRange.min_date) continue;
-        if (dateRange.max_date != undefined && tweetDate > dateRange.max_date) break;
+        if (dateRange.min_date != undefined && tweetDate < dateRange.min_date)
+          continue;
+        if (dateRange.max_date != undefined && tweetDate > dateRange.max_date)
+          break;
 
         // if (tweet.id != "1237000612639846402")
         //     continue;
@@ -211,6 +212,5 @@ const Home = () => {
       <button onClick={tweet_to_bsky}> Buton </button>
     </div>
   );
-
 };
 export default Home;

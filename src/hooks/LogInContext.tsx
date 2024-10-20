@@ -5,12 +5,13 @@ import { LogInContextType } from "../types/login.type";
 // Create context with a default value
 export const LogInContext = createContext<LogInContextType>({
   loggedIn: false,
+  setLoggedIn: () => { },
   signOut: () => { },
   agent: null,
 });
 
 export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
-  const [loggedIn, setLoggedIn] = useState<boolean>(false);
+  const [loggedIn, setLoggedIn] = useState<boolean>(true);
   const [agent, setAgent] = useState<any>(null);
 
   const signOut = () => {
@@ -20,18 +21,23 @@ export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
+    console.log("logged in contet");
+    let agentInstance;
     const validate = async () => {
       if (!agent) {
-        const agentInstance = await ValidateUser(agent, loggedIn);
+        // setLoggedIn(!loggedIn);
+        console.log("validate init");
+        agentInstance = await ValidateUser(loggedIn);
         setAgent(agentInstance.agent);
-        setLoggedIn(agentInstance.loggedInSuccess);
+        console.log("agent instance vayo");
       }
     };
     validate();
+    console.log(agentInstance);
   }, [agent]);
 
   return (
-    <LogInContext.Provider value={{ loggedIn, signOut, agent }}>
+    <LogInContext.Provider value={{ loggedIn, signOut, agent, setLoggedIn }}>
       {children}
     </LogInContext.Provider>
   );

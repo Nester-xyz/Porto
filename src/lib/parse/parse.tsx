@@ -4,8 +4,6 @@ import * as process from "process";
 import URI from "urijs";
 import he from "he";
 
-
-
 const PAST_HANDLES = process.env.TWITTER_HANDLE?.split(",");
 
 let MIN_DATE: Date | undefined = undefined;

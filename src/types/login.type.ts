@@ -1,3 +1,4 @@
+import { Dispatch, SetStateAction } from "react";
 import { AtpAgent } from "@atproto/api";
 
 type Tlogin = ({
@@ -12,6 +13,7 @@ type Tlogin = ({
 
 export interface LogInContextType {
   loggedIn: boolean;
+  setLoggedIn: Dispatch<SetStateAction<boolean>>;
   signOut: () => void;
   agent: AtpAgent | null;
 }

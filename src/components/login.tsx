@@ -9,6 +9,7 @@ import { BsFillInfoCircleFill } from "react-icons/bs";
 import { CgDanger } from "react-icons/cg";
 import { useLogInContext } from "@/hooks/LogInContext";
 import Home from "./pages/Home/home";
+import Page from "./pages/Home/page";
 
 const Login = () => {
 
@@ -18,14 +19,14 @@ const Login = () => {
   const [showToolTip, setShowToolTip] = useState(false);
   const [error, setError] = useState<string>("");
 
-  const { agent, loggedIn } = useLogInContext();
+  const { agent, loggedIn, setLoggedIn } = useLogInContext();
 
 
   useEffect(() => {
-    console.log(loggedIn);
+    console.log("useeffect", loggedIn);
   }, [loggedIn]);
   const onLogin = async () => {
-    if (!agent) return;
+    if (!agent) { console.log("no agent", agent); return };
 
     console.log(agent);
     try {
@@ -33,6 +34,11 @@ const Login = () => {
         identifier: userName.toString(),
         password: password.toString(),
       });
+      console.log(user);
+      if (user.success) {
+        setLoggedIn(user.success);
+      }
+      console.log(loggedIn);
     } catch (error) {
       console.log("Error logging in:", error);
       setError("Invalid username or password");
@@ -55,7 +61,7 @@ const Login = () => {
     }
   };
 
-  // if (loggedIn) { return<> <Home /> </>}
+  if (loggedIn) { return <> <Page /> </> }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
