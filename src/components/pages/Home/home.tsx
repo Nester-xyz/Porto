@@ -1,8 +1,10 @@
 import { useLogInContext } from "@/hooks/LogInContext";
-import { RichText } from "@atproto/api";
-import { cleanTweetText } from "@/lib/parse/parse";
 import { useState } from "react";
 import FS from "fs";
+import URI from "urijs";
+import he from "he";
+import { RichText } from "@atproto/api";
+
 
 interface DateRange {
   min_date: Date | undefined;
@@ -20,6 +22,54 @@ const Home = () => {
   });
   const ApiDelay = 2500;
   const BLUESKY_USERNAME = "khadgaprasadoli";
+
+  async function resolveShortURL(url: string) {
+    try {
+      const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+      return response.url;
+    } catch (error) {
+      console.warn(`Error parsing url ${url}:`, error);
+      return url;
+    }
+  }
+
+
+  async function cleanTweetText(tweetFullText: string): Promise<string> {
+    let newText = tweetFullText;
+    const urls: string[] = [];
+    URI.withinString(tweetFullText, (url, start, end, source) => {
+      urls.push(url);
+      return url;
+    });
+
+    if (urls.length > 0) {
+      const newUrls: string[] = [];
+      for (let index = 0; index < urls.length; index++) {
+        const newUrl = await resolveShortURL(urls[index]);
+        newUrls.push(newUrl);
+      }
+
+      if (newUrls.length > 0) {
+        let j = 0;
+        newText = URI.withinString(tweetFullText, (url, start, end, source) => {
+          // I exclude links to photos, because they have already been inserted into the Bluesky post independently
+          if (
+            ([]).some((handle) =>
+              newUrls[j].startsWith(`https://x.com/${handle}/`),
+            ) &&
+            newUrls[j].indexOf("/photo/") > 0
+          ) {
+            j++;
+            return "";
+          } else return newUrls[j++];
+        });
+      }
+    }
+
+    newText = he.decode(newText);
+
+    return newText;
+  }
 
 
   const tweet_to_bsky = async () => {
@@ -159,6 +209,39 @@ const Home = () => {
 
           if (tweet.full_text != postText)
             console.log(` Clean text '${postText}'`);
+        }
+        const rt = new RichText({
+          text: postText,
+        });
+        await rt.detectFacets(agent);
+        const postRecord = {
+          $type: "app.bsky.feed.post",
+          text: rt.text,
+          facets: rt.facets,
+          createdAt: tweet_createdAt,
+          embed:
+            embeddedImage.length > 0
+              ? { $type: "app.bsky.embed.images", images: embeddedImage }
+              : undefined,
+        };
+
+        if (!simulate) {
+          //I wait 3 seconds so as not to exceed the api rate limits
+          await new Promise((resolve) => setTimeout(resolve, ApiDelay));
+
+          const recordData = await agent!.post(postRecord);
+          const i = recordData.uri.lastIndexOf("/");
+          if (i > 0) {
+            const rkey = recordData.uri.substring(i + 1);
+            const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME!}/post/${rkey}`;
+            console.log("Bluesky post create, URL: " + postUri);
+
+            importedTweet++;
+          } else {
+            console.warn(recordData);
+          }
+        } else {
+          importedTweet++;
         }
       }
     }
