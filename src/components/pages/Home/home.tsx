@@ -4,7 +4,6 @@ import { cleanTweetText } from "@/lib/parse/parse";
 import * as dotenv from "dotenv";
 import { useState } from 'react'
 import FS from "fs";
-import * as process from "process";
 dotenv.config();
 
 
@@ -15,7 +14,7 @@ interface DateRange {
 const Home = () => {
   const { agent } = useLogInContext();
   const [simulate, setSimulate] = useState(false);
-  const [archiveFolder, setArchiveFolder] = useState("");
+  const [archiveFolder, setArchiveFolder] = useState("/home/yogesharyal/Downloads/twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9");
   const [dateRange, setDateRange] = useState<DateRange>({
     min_date: undefined,
     max_date: undefined
@@ -106,7 +105,7 @@ const Home = () => {
                 break;
               }
 
-              const mediaFilename = `${ARCHIVE_FOLDER}/data/tweets_media/${tweet.id}-${media?.media_url.substring(i + 1)}`;
+              const mediaFilename = `${archiveFolder}/data/tweets_media/${tweet.id}-${media?.media_url.substring(i + 1)}`;
               const imageBuffer = FS.readFileSync(mediaFilename);
 
               if (!simulate) {

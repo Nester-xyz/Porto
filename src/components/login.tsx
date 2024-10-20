@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,7 +7,6 @@ import { HiEye } from "react-icons/hi";
 import { HiEyeSlash } from "react-icons/hi2";
 import { BsFillInfoCircleFill } from "react-icons/bs";
 import { CgDanger } from "react-icons/cg";
-import AtpAgent, { AtpSessionData, AtpSessionEvent } from "@atproto/api";
 import { useLogInContext } from "@/hooks/LogInContext";
 
 

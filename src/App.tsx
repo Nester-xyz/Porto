@@ -1,11 +1,8 @@
-import { LogInProvider } from "./hooks/LogInContext";
-import Login from "./components/login";
+import Post from "./components/Post";
 
 const App = () => {
   return (
-    <LogInProvider>
-      <Login />
-    </LogInProvider>
+    <Post />
   );
 };
 
