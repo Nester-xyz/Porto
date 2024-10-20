@@ -1,5 +1,5 @@
 import { useLogInContext } from "@/hooks/LogInContext";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FS from "fs";
 import URI from "urijs";
 import he from "he";
@@ -13,16 +13,27 @@ interface DateRange {
 const Home = () => {
   const { agent } = useLogInContext();
   const [simulate, setSimulate] = useState(false);
-  const [archiveFolder, setArchiveFolder] = useState(
-    "/home/yogesharyal/Downloads/twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9",
-  );
   const [dateRange, setDateRange] = useState<DateRange>({
     min_date: undefined,
     max_date: undefined,
   });
   const ApiDelay = 2500;
   const BLUESKY_USERNAME = "khadgaprasadoli";
+  const [files, setFiles] = useState<FileList | null>(null);
 
+  const [fileMap, setFileMap] = useState<Map<string, File>>(new Map());
+
+  useEffect(() => {
+    if (files) {
+      const map = new Map();
+      for (const file of files) {
+        // webkitRelativePath contains the folder structure
+        map.set(file.webkitRelativePath, file);
+        console.log(file);
+      }
+      setFileMap(map);
+    }
+  }, [files]);
   async function resolveShortURL(url: string) {
     try {
       const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
@@ -78,14 +89,33 @@ const Home = () => {
         console.log("No agent found");
         return;
       }
-      console.log("initiated");
-      console.log(`Import started at ${new Date().toISOString()}`);
-      console.log(`simulate is ${simulate ? "ON" : "OFF"}`);
 
-      const fTweets = FS.readFileSync(archiveFolder + "/data/tweets.js");
+      if (!fileMap.size) {
+        console.log("No files selected");
+        return;
+      }
+
+      console.log(`Import started at ${new Date().toISOString()}`);
+      console.log(`Simulate is ${simulate ? "ON" : "OFF"}`);
+
+      // Adjust the file path to match how it appears in webkitRelativePath
+
+      const tweetsFilePath = "twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9/data/tweets.js";
+      const tweetsFile = fileMap.get(tweetsFilePath);
+      console.log(tweetsFile);
+
+
+      if (!tweetsFile) {
+        console.log(`File ${tweetsFilePath} not found`);
+        return;
+      }
+
+      // Read the file content asynchronously
+
+      const tweetsFileContent = await tweetsFile.text();
 
       const tweets = JSON.parse(
-        fTweets.toString().replace("window.YTD.tweets.part0 = [", "["),
+        tweetsFileContent.replace("window.YTD.tweets.part0 = [", "["),
       );
 
       let importedTweet = 0;
@@ -97,23 +127,21 @@ const Home = () => {
           return ad - bd;
         });
       }
+
       for (let index = 0; index < sortedTweets.length; index++) {
         const tweet = sortedTweets[index].tweet;
         const tweetDate = new Date(tweet.created_at);
         const tweet_createdAt = tweetDate.toISOString();
 
-        //this cheks assume that the array is sorted by date (first the oldest)
+        // These checks assume that the array is sorted by date (first the oldest)
         if (dateRange.min_date != undefined && tweetDate < dateRange.min_date)
           continue;
         if (dateRange.max_date != undefined && tweetDate > dateRange.max_date)
           break;
 
-        // if (tweet.id != "1237000612639846402")
-        //     continue;
-
-        console.log(`Parse tweet id '${tweet.id}'`);
-        console.log(` Created at ${tweet_createdAt}`);
-        console.log(` Full text '${tweet.full_text}'`);
+        console.log(`Parse tweet id '${tweet.id}`);
+        console.log(`Created at ${tweet_createdAt}`);
+        console.log(`Full text '${tweet.full_text}`);
 
         if (tweet.in_reply_to_screen_name) {
           console.log("Discarded (reply)");
@@ -128,8 +156,6 @@ const Home = () => {
           continue;
         }
 
-        //works
-        //
         let tweetWithEmbeddedVideo = false;
         let embeddedImage = [] as any;
         if (tweet.extended_entities?.media) {
@@ -153,7 +179,7 @@ const Home = () => {
                   mimeType = "image/jpeg";
                   break;
                 default:
-                  console.error("Unsopported photo file type" + fileType);
+                  console.error("Unsupported photo file type " + fileType);
                   break;
               }
               if (mimeType.length <= 0) continue;
@@ -165,8 +191,19 @@ const Home = () => {
                 break;
               }
 
-              const mediaFilename = `${archiveFolder}/data/tweets_media/${tweet.id}-${media?.media_url.substring(i + 1)}`;
-              const imageBuffer = FS.readFileSync(mediaFilename);
+              // Construct the media filename relative to the selected folder
+              const mediaFilename = `data/tweets_media/${tweet.id}-${media?.media_url.substring(
+                i + 1,
+              )}`;
+              const imageFile = fileMap.get(mediaFilename);
+
+              if (!imageFile) {
+                console.log(`Image file ${mediaFilename} not found`);
+                continue;
+              }
+
+              // Read the image file as an ArrayBuffer
+              const imageBuffer = await imageFile.arrayBuffer();
 
               if (!simulate) {
                 const blobRecord = await agent!.uploadBlob(imageBuffer, {
@@ -192,9 +229,8 @@ const Home = () => {
           }
         }
 
-        //TODO fix this works above 
         if (tweetWithEmbeddedVideo) {
-          console.log("Discarded (containnig videos)");
+          console.log("Discarded (containing videos)");
           continue;
         }
 
@@ -204,11 +240,10 @@ const Home = () => {
 
           if (postText.length > 300) postText = tweet.full_text;
 
-          if (postText.length > 300)
-            postText = postText.substring(0, 296) + "...";
+          if (postText.length > 300) postText = postText.substring(0, 296) + "...";
 
           if (tweet.full_text != postText)
-            console.log(` Clean text '${postText}'`);
+            console.log(`Clean text '${postText}`);
         }
         const rt = new RichText({
           text: postText,
@@ -226,7 +261,7 @@ const Home = () => {
         };
 
         if (!simulate) {
-          //I wait 3 seconds so as not to exceed the api rate limits
+          // Wait to avoid exceeding API rate limits
           await new Promise((resolve) => setTimeout(resolve, ApiDelay));
 
           const recordData = await agent!.post(postRecord);
@@ -234,7 +269,7 @@ const Home = () => {
           if (i > 0) {
             const rkey = recordData.uri.substring(i + 1);
             const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME!}/post/${rkey}`;
-            console.log("Bluesky post create, URL: " + postUri);
+            console.log("Bluesky post created, URL: " + postUri);
 
             importedTweet++;
           } else {
@@ -244,8 +279,7 @@ const Home = () => {
           importedTweet++;
         }
       }
-    }
-    catch (error) {
+    } catch (error) {
       console.log(error);
     }
   };
@@ -253,6 +287,13 @@ const Home = () => {
   return (
     <div>
       <button onClick={() => { tweet_to_bsky() }}> Buton post </button>
+      <input
+        id="file-upload"
+        type="file"
+        onChange={(e) => setFiles(e.target.files)}
+        className=""
+        {...({ webkitdirectory: "true" } as React.InputHTMLAttributes<HTMLInputElement>)}
+      />
     </div>
   );
 };

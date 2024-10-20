@@ -5,13 +5,13 @@ import { LogInContextType } from "../types/login.type";
 // Create context with a default value
 export const LogInContext = createContext<LogInContextType>({
   loggedIn: false,
-  setLoggedIn: () => {},
-  signOut: () => {},
+  setLoggedIn: () => { },
+  signOut: () => { },
   agent: null,
 });
 
 export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
-  const [loggedIn, setLoggedIn] = useState<boolean>(true);
+  const [loggedIn, setLoggedIn] = useState<boolean>(false);
   const [agent, setAgent] = useState<any>(null);
 
   const signOut = () => {
