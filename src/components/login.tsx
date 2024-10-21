@@ -65,8 +65,7 @@ const Login = () => {
   if (loggedIn) {
     return (
       <>
-        {" "}
-        <Home />{" "}
+        <Home />
       </>
     );
   }

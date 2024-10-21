@@ -1,14 +1,19 @@
+import { Button } from "@/components/ui/button";
 import { useLogInContext } from "@/hooks/LogInContext";
 import { RichText } from "@atproto/api";
 import he from "he";
-import { Upload } from "lucide-react";
+import { Divide, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import URI from "urijs";
+import FileFoundCard from "@/components/FileFoundCard";
 
 interface DateRange {
   min_date: Date | undefined;
   max_date: Date | undefined;
 }
+
+type TcheckFile = (fileName: string) => boolean;
+
 const Home = () => {
   const { agent } = useLogInContext();
   const [simulate, setSimulate] = useState(false);
@@ -21,6 +26,19 @@ const Home = () => {
   const [files, setFiles] = useState<FileList | null>(null);
 
   const [fileMap, setFileMap] = useState<Map<string, File>>(new Map());
+
+  const CheckFile: TcheckFile = (filename: string) => {
+    // If fileMap is not populated or is empty, return false
+    if (!fileMap || fileMap.size === 0) return false;
+
+    // Check if any file in the map ends with the filename
+    const fileExists = Array.from(fileMap.keys()).some((filePath) => {
+      return filePath.endsWith(filename);
+    });
+
+    console.log(`File '${filename}' exists:`, fileExists);
+    return true;
+  };
 
   useEffect(() => {
     if (files) {
@@ -284,15 +302,7 @@ const Home = () => {
 
   return (
     <div>
-      <button
-        onClick={() => {
-          tweet_to_bsky();
-        }}
-      >
-        {" "}
-        Buton post{" "}
-      </button>
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
         <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
           <h1 className="text-2xl font-bold mb-6 text-center text-blue-600">
             Port Twitter posts to Bluesky
@@ -302,7 +312,6 @@ const Home = () => {
               htmlFor="file-upload"
               className="flex flex-col items-center px-4 py-6 bg-white text-blue rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-blue-600 hover:text-white"
             >
-              <Upload className="w-8 h-8" />
               <span className="mt-2 text-base leading-normal">
                 Select a folder
               </span>
@@ -319,11 +328,32 @@ const Home = () => {
               />
             </label>
           </div>
-          <p className="mt-4 text-sm text-gray-600 text-center">
-            Choose the folder containing your Twitter posts to import them into
-            Bluesky.
-          </p>
+          {files && files?.length > 0 ? (
+            <div className="mt-4">
+              <p className="text-sm text-gray-600">
+                {files.length} files selected
+              </p>
+              <div>
+                <FileFoundCard
+                  cardName="data/tweets.js"
+                  found={CheckFile("data/tweets.js")}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="text-center mt-2">
+              Choose the folder containing your Twitter posts to import them
+              into Bluesky.
+            </div>
+          )}
         </div>
+        <Button
+          onClick={() => {
+            tweet_to_bsky();
+          }}
+        >
+          Buton post
+        </Button>
       </div>
     </div>
   );
