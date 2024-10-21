@@ -1,10 +1,9 @@
 import { useLogInContext } from "@/hooks/LogInContext";
-import { useState, useEffect } from "react";
-import FS from "fs";
-import URI from "urijs";
-import he from "he";
 import { RichText } from "@atproto/api";
-
+import he from "he";
+import { Upload } from "lucide-react";
+import { useEffect, useState } from "react";
+import URI from "urijs";
 
 interface DateRange {
   min_date: Date | undefined;
@@ -36,14 +35,13 @@ const Home = () => {
   }, [files]);
   async function resolveShortURL(url: string) {
     try {
-      const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+      const response = await fetch(url, { method: "HEAD", redirect: "follow" });
       return response.url;
     } catch (error) {
       console.warn(`Error parsing url ${url}:`, error);
       return url;
     }
   }
-
 
   async function cleanTweetText(tweetFullText: string): Promise<string> {
     let newText = tweetFullText;
@@ -65,7 +63,7 @@ const Home = () => {
         newText = URI.withinString(tweetFullText, (url, start, end, source) => {
           // I exclude links to photos, because they have already been inserted into the Bluesky post independently
           if (
-            ([]).some((handle) =>
+            [].some((handle) =>
               newUrls[j].startsWith(`https://x.com/${handle}/`),
             ) &&
             newUrls[j].indexOf("/photo/") > 0
@@ -81,7 +79,6 @@ const Home = () => {
 
     return newText;
   }
-
 
   const tweet_to_bsky = async () => {
     try {
@@ -100,10 +97,10 @@ const Home = () => {
 
       // Adjust the file path to match how it appears in webkitRelativePath
 
-      const tweetsFilePath = "twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9/data/tweets.js";
+      const tweetsFilePath =
+        "twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9/data/tweets.js";
       const tweetsFile = fileMap.get(tweetsFilePath);
       console.log(tweetsFile);
-
 
       if (!tweetsFile) {
         console.log(`File ${tweetsFilePath} not found`);
@@ -240,7 +237,8 @@ const Home = () => {
 
           if (postText.length > 300) postText = tweet.full_text;
 
-          if (postText.length > 300) postText = postText.substring(0, 296) + "...";
+          if (postText.length > 300)
+            postText = postText.substring(0, 296) + "...";
 
           if (tweet.full_text != postText)
             console.log(`Clean text '${postText}`);
@@ -286,14 +284,47 @@ const Home = () => {
 
   return (
     <div>
-      <button onClick={() => { tweet_to_bsky() }}> Buton post </button>
-      <input
-        id="file-upload"
-        type="file"
-        onChange={(e) => setFiles(e.target.files)}
-        className=""
-        {...({ webkitdirectory: "true" } as React.InputHTMLAttributes<HTMLInputElement>)}
-      />
+      <button
+        onClick={() => {
+          tweet_to_bsky();
+        }}
+      >
+        {" "}
+        Buton post{" "}
+      </button>
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
+          <h1 className="text-2xl font-bold mb-6 text-center text-blue-600">
+            Port Twitter posts to Bluesky
+          </h1>
+          <div className="mt-4">
+            <label
+              htmlFor="file-upload"
+              className="flex flex-col items-center px-4 py-6 bg-white text-blue rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-blue-600 hover:text-white"
+            >
+              <Upload className="w-8 h-8" />
+              <span className="mt-2 text-base leading-normal">
+                Select a folder
+              </span>
+              <input
+                id="file-upload"
+                type="file"
+                onChange={(e) => {
+                  setFiles(e.target.files);
+                }}
+                className="hidden"
+                {...({
+                  webkitdirectory: "true",
+                } as React.InputHTMLAttributes<HTMLInputElement>)}
+              />
+            </label>
+          </div>
+          <p className="mt-4 text-sm text-gray-600 text-center">
+            Choose the folder containing your Twitter posts to import them into
+            Bluesky.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
