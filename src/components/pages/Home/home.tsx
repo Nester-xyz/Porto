@@ -1,6 +1,5 @@
 import { useLogInContext } from "@/hooks/LogInContext";
 import { useState, useEffect } from "react";
-import FS from "fs";
 import URI from "urijs";
 import he from "he";
 import { RichText } from "@atproto/api";
