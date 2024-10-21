@@ -34,16 +34,6 @@ const Home = () => {
       setFileMap(map);
     }
   }, [files]);
-  async function resolveShortURL(url: string) {
-    try {
-      const response = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-      return response.url;
-    } catch (error) {
-      console.warn(`Error parsing url ${url}:`, error);
-      return url;
-    }
-  }
-
 
   async function cleanTweetText(tweetFullText: string): Promise<string> {
     let newText = tweetFullText;
@@ -56,8 +46,7 @@ const Home = () => {
     if (urls.length > 0) {
       const newUrls: string[] = [];
       for (let index = 0; index < urls.length; index++) {
-        const newUrl = await resolveShortURL(urls[index]);
-        newUrls.push(newUrl);
+        newUrls.push(urls[index]);
       }
 
       if (newUrls.length > 0) {
@@ -192,7 +181,7 @@ const Home = () => {
               }
 
               // Construct the media filename relative to the selected folder
-              const mediaFilename = `data/tweets_media/${tweet.id}-${media?.media_url.substring(
+              const mediaFilename = `twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9/data/tweets_media/${tweet.id}-${media?.media_url.substring(
                 i + 1,
               )}`;
               const imageFile = fileMap.get(mediaFilename);
