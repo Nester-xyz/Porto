@@ -46,9 +46,15 @@ const Home = () => {
 
   const findFile = (fileName: string): File | null => {
     if (!fileMap || fileMap.size === 0) return null;
-    const filePath = Array.from(fileMap.keys()).find((filePath) =>
-      filePath.endsWith(fileName),
-    );
+
+    const filePath = Array.from(fileMap.keys()).find((filePath) => {
+      const pathParts = filePath.split("/");
+      const actualFileName = pathParts[pathParts.length - 1];
+
+      // Check for exact match of the filename
+      return actualFileName === fileName;
+    });
+
     return filePath ? fileMap.get(filePath) || null : null;
   };
 
@@ -106,6 +112,7 @@ const Home = () => {
   }
 
   const parseTweetsFile = (content: string): Tweet[] => {
+    console.log(content, "this is content");
     try {
       return JSON.parse(content);
     } catch {
@@ -121,6 +128,7 @@ const Home = () => {
   };
 
   const tweet_to_bsky = async () => {
+    // TODO: un comment this code
     if (!agent) {
       console.log("No agent found");
       return;
