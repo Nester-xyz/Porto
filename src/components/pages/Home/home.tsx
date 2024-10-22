@@ -250,6 +250,7 @@ const Home = () => {
 
         if (!simulate) {
           // Wait to avoid exceeding API rate limits
+          // Just
           await new Promise((resolve) => setTimeout(resolve, ApiDelay));
 
           const recordData = await agent!.post(postRecord);
