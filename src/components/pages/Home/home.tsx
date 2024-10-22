@@ -42,6 +42,7 @@ const Home = () => {
   const [tweetsLocation, setTweetsLocation] = useState<string | null>(null);
   const [fileMap, setFileMap] = useState<Map<string, File>>(new Map());
   const [isProcessing, setIsProcessing] = useState(false);
+  const [mediaLocation, setMediaLocation] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
 
   const findFile = (fileName: string): File | null => {
@@ -75,6 +76,13 @@ const Home = () => {
   useEffect(() => {
     const file = findFile("tweets.js");
     setTweetsLocation(file ? file.webkitRelativePath : null);
+
+    const parentFolder = file?.webkitRelativePath
+      ?.split("/")
+      .slice(0, -1)
+      .join("/");
+
+    setMediaLocation(`${parentFolder}/tweets_media`);
   }, [fileMap]);
 
   async function resolveShortURL(url: string) {
@@ -206,7 +214,7 @@ const Home = () => {
                 if (!mimeType) continue;
                 if (embeddedImage.length >= 4) break;
 
-                const mediaFilename = `data/tweets_media/${tweet.id}-${media.media_url.split("/").pop()}`;
+                const mediaFilename = `${mediaLocation}/${tweet.id}-${media.media_url.split("/").pop()}`;
                 const imageFile = fileMap.get(mediaFilename);
 
                 if (imageFile) {

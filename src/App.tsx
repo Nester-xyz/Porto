@@ -4,6 +4,7 @@ import { LogInProvider } from "./hooks/LogInContext";
 
 const App = () => {
   return (
+    // <Home />
     <LogInProvider>
       <Login />
     </LogInProvider>
