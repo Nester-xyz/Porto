@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { useLogInContext } from "@/hooks/LogInContext";
 import { RichText } from "@atproto/api";
 import he from "he";
-import { Divide, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import URI from "urijs";
 import FileFoundCard from "@/components/FileFoundCard";
@@ -13,6 +13,21 @@ interface DateRange {
 }
 
 type TcheckFile = (fileName: string) => boolean;
+
+interface Tweet {
+  tweet: {
+    created_at: string;
+    id: string;
+    full_text: string;
+    in_reply_to_screen_name: string | null;
+    extended_entities?: {
+      media: {
+        type: string;
+        media_url: string;
+      }[];
+    };
+  };
+}
 
 const Home = () => {
   const { agent } = useLogInContext();
@@ -25,33 +40,26 @@ const Home = () => {
   const BLUESKY_USERNAME = "khadgaprasadoli";
   const [files, setFiles] = useState<FileList | null>(null);
   const [tweetsLocation, setTweetsLocation] = useState<string | null>(null);
-
   const [fileMap, setFileMap] = useState<Map<string, File>>(new Map());
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const findFile = (fileName: string): File | null => {
     if (!fileMap || fileMap.size === 0) return null;
-
-    // Find the file path that matches the given fileName
     const filePath = Array.from(fileMap.keys()).find((filePath) =>
       filePath.endsWith(fileName),
     );
-
-    // If a matching file path is found, return the corresponding File object
     return filePath ? fileMap.get(filePath) || null : null;
   };
 
   const CheckFile: TcheckFile = (filename: string) => {
-    if (findFile(filename)) {
-      return true;
-    }
-    return false;
+    return !!findFile(filename);
   };
 
   useEffect(() => {
     if (files) {
       const map = new Map();
       for (const file of files) {
-        // webkitRelativePath contains the folder structure
         map.set(file.webkitRelativePath, file);
       }
       setFileMap(map);
@@ -76,298 +84,265 @@ const Home = () => {
   async function cleanTweetText(tweetFullText: string): Promise<string> {
     let newText = tweetFullText;
     const urls: string[] = [];
-    URI.withinString(tweetFullText, (url, start, end, source) => {
+    URI.withinString(tweetFullText, (url) => {
       urls.push(url);
       return url;
     });
 
     if (urls.length > 0) {
-      const newUrls: string[] = [];
-      for (let index = 0; index < urls.length; index++) {
-        const newUrl = await resolveShortURL(urls[index]);
-        newUrls.push(newUrl);
-      }
-
-      if (newUrls.length > 0) {
-        let j = 0;
-        newText = URI.withinString(tweetFullText, (url, start, end, source) => {
-          // I exclude links to photos, because they have already been inserted into the Bluesky post independently
-          if (
-            [].some((handle) =>
-              newUrls[j].startsWith(`https://x.com/${handle}/`),
-            ) &&
-            newUrls[j].indexOf("/photo/") > 0
-          ) {
-            j++;
-            return "";
-          } else return newUrls[j++];
-        });
-      }
+      const newUrls = await Promise.all(urls.map(resolveShortURL));
+      let j = 0;
+      newText = URI.withinString(tweetFullText, (url) => {
+        if (newUrls[j].indexOf("/photo/") > 0) {
+          j++;
+          return "";
+        }
+        return newUrls[j++];
+      });
     }
 
     newText = he.decode(newText);
-
     return newText;
   }
 
-  const tweet_to_bsky = async () => {
+  const parseTweetsFile = (content: string): Tweet[] => {
     try {
-      if (!agent) {
-        console.log("No agent found");
-        return;
+      return JSON.parse(content);
+    } catch {
+      try {
+        const jsonContent = content
+          .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, "")
+          .replace(/;$/, "");
+        return JSON.parse(jsonContent);
+      } catch (error) {
+        throw new Error(`Failed to parse tweets file: ${error}`);
       }
+    }
+  };
 
-      if (!fileMap.size) {
-        console.log("No files selected");
-        return;
-      }
+  const tweet_to_bsky = async () => {
+    if (!agent) {
+      console.log("No agent found");
+      return;
+    }
 
+    if (!fileMap.size) {
+      console.log("No files selected");
+      return;
+    }
+
+    setIsProcessing(true);
+    setProgress(0);
+
+    try {
       console.log(`Import started at ${new Date().toISOString()}`);
       console.log(`Simulate is ${simulate ? "ON" : "OFF"}`);
 
-      // Adjust the file path to match how it appears in webkitRelativePath
-
-      const tweetsFilePath =
-        "twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9/data/tweets.js";
       const tweetsFile = fileMap.get(tweetsLocation!);
-      console.log(tweetsFile);
-
       if (!tweetsFile) {
-        console.log(`File ${tweetsFilePath} not found`);
-        return;
+        throw new Error(`Tweets file not found at ${tweetsLocation}`);
       }
-
-      // Read the file content asynchronously
 
       const tweetsFileContent = await tweetsFile.text();
+      const tweets = parseTweetsFile(tweetsFileContent);
 
-      const tweets = JSON.parse(
-        tweetsFileContent.replace("window.YTD.tweets.part0 = [", "["),
-      );
+      if (!Array.isArray(tweets)) {
+        throw new Error("Parsed content is not an array");
+      }
 
       let importedTweet = 0;
-      let sortedTweets;
-      if (tweets != null && tweets.length > 0) {
-        sortedTweets = tweets.sort((a: any, b: any) => {
-          let ad = new Date(a.tweet.created_at).getTime();
-          let bd = new Date(b.tweet.created_at).getTime();
-          return ad - bd;
+      const sortedTweets = tweets
+        .filter((tweet) => {
+          const tweetDate = new Date(tweet.tweet.created_at);
+          if (dateRange.min_date && tweetDate < dateRange.min_date)
+            return false;
+          if (dateRange.max_date && tweetDate > dateRange.max_date)
+            return false;
+          return true;
+        })
+        .sort((a, b) => {
+          return (
+            new Date(a.tweet.created_at).getTime() -
+            new Date(b.tweet.created_at).getTime()
+          );
         });
-      }
 
-      for (let index = 0; index < sortedTweets.length; index++) {
-        const tweet = sortedTweets[index].tweet;
-        const tweetDate = new Date(tweet.created_at);
-        const tweet_createdAt = tweetDate.toISOString();
+      for (const [index, { tweet }] of sortedTweets.entries()) {
+        try {
+          setProgress(Math.round((index / sortedTweets.length) * 100));
+          const tweetDate = new Date(tweet.created_at);
+          const tweet_createdAt = tweetDate.toISOString();
 
-        // These checks assume that the array is sorted by date (first the oldest)
-        if (dateRange.min_date != undefined && tweetDate < dateRange.min_date)
-          continue;
-        if (dateRange.max_date != undefined && tweetDate > dateRange.max_date)
-          break;
-
-        console.log(`Parse tweet id '${tweet.id}`);
-        console.log(`Created at ${tweet_createdAt}`);
-        console.log(`Full text '${tweet.full_text}`);
-
-        if (tweet.in_reply_to_screen_name) {
-          console.log("Discarded (reply)");
-          continue;
-        }
-        if (tweet.full_text.startsWith("@")) {
-          console.log("Discarded (start with @)");
-          continue;
-        }
-        if (tweet.full_text.startsWith("RT ")) {
-          console.log("Discarded (start with RT)");
-          continue;
-        }
-
-        let tweetWithEmbeddedVideo = false;
-        let embeddedImage = [] as any;
-        if (tweet.extended_entities?.media) {
-          for (
-            let index = 0;
-            index < tweet.extended_entities.media.length;
-            index++
+          if (
+            tweet.in_reply_to_screen_name ||
+            tweet.full_text.startsWith("@") ||
+            tweet.full_text.startsWith("RT ")
           ) {
-            const media = tweet.extended_entities.media[index];
+            continue;
+          }
 
-            if (media?.type === "photo") {
-              const i = media?.media_url.lastIndexOf("/");
-              const it = media?.media_url.lastIndexOf(".");
-              const fileType = media?.media_url.substring(it + 1);
-              let mimeType = "";
-              switch (fileType) {
-                case "png":
-                  mimeType = "image/png";
-                  break;
-                case "jpg":
-                  mimeType = "image/jpeg";
-                  break;
-                default:
-                  console.error("Unsupported photo file type " + fileType);
-                  break;
-              }
-              if (mimeType.length <= 0) continue;
+          let embeddedImage = [] as any;
+          let hasVideo = false;
 
-              if (index > 3) {
-                console.warn(
-                  "Bluesky does not support more than 4 images per post, excess images will be discarded.",
-                );
+          if (tweet.extended_entities?.media) {
+            for (const media of tweet.extended_entities.media) {
+              if (media.type === "photo") {
+                const fileType = media.media_url.split(".").pop();
+                const mimeType =
+                  fileType === "png"
+                    ? "image/png"
+                    : fileType === "jpg"
+                      ? "image/jpeg"
+                      : "";
+
+                if (!mimeType) continue;
+                if (embeddedImage.length >= 4) break;
+
+                const mediaFilename = `data/tweets_media/${tweet.id}-${media.media_url.split("/").pop()}`;
+                const imageFile = fileMap.get(mediaFilename);
+
+                if (imageFile) {
+                  const imageBuffer = await imageFile.arrayBuffer();
+                  if (!simulate) {
+                    const blobRecord = await agent.uploadBlob(imageBuffer, {
+                      encoding: mimeType,
+                    });
+
+                    embeddedImage.push({
+                      alt: "",
+                      image: {
+                        $type: "blob",
+                        ref: blobRecord.data.blob.ref,
+                        mimeType: blobRecord.data.blob.mimeType,
+                        size: blobRecord.data.blob.size,
+                      },
+                    });
+                  }
+                }
+              } else if (media.type === "video") {
+                hasVideo = true;
                 break;
               }
-
-              // Construct the media filename relative to the selected folder
-              const mediaFilename = `data/tweets_media/${tweet.id}-${media?.media_url.substring(
-                i + 1,
-              )}`;
-              const imageFile = fileMap.get(mediaFilename);
-
-              if (!imageFile) {
-                console.log(`Image file ${mediaFilename} not found`);
-                continue;
-              }
-
-              // Read the image file as an ArrayBuffer
-              const imageBuffer = await imageFile.arrayBuffer();
-
-              if (!simulate) {
-                const blobRecord = await agent!.uploadBlob(imageBuffer, {
-                  encoding: mimeType,
-                });
-
-                embeddedImage.push({
-                  alt: "",
-                  image: {
-                    $type: "blob",
-                    ref: blobRecord.data.blob.ref,
-                    mimeType: blobRecord.data.blob.mimeType,
-                    size: blobRecord.data.blob.size,
-                  },
-                });
-              }
-            }
-
-            if (media?.type === "video") {
-              tweetWithEmbeddedVideo = true;
-              continue;
             }
           }
-        }
 
-        if (tweetWithEmbeddedVideo) {
-          console.log("Discarded (containing videos)");
-          continue;
-        }
+          if (hasVideo) continue;
 
-        let postText = tweet.full_text as string;
-        if (!simulate) {
-          postText = await cleanTweetText(tweet.full_text);
+          let postText = tweet.full_text;
+          if (!simulate) {
+            postText = await cleanTweetText(tweet.full_text);
+            if (postText.length > 300) {
+              postText = postText.substring(0, 296) + "...";
+            }
+          }
 
-          if (postText.length > 300) postText = tweet.full_text;
+          const rt = new RichText({ text: postText });
+          await rt.detectFacets(agent);
 
-          if (postText.length > 300)
-            postText = postText.substring(0, 296) + "...";
+          const postRecord = {
+            $type: "app.bsky.feed.post",
+            text: rt.text,
+            facets: rt.facets,
+            createdAt: tweet_createdAt,
+            embed:
+              embeddedImage.length > 0
+                ? { $type: "app.bsky.embed.images", images: embeddedImage }
+                : undefined,
+          };
 
-          if (tweet.full_text != postText)
-            console.log(`Clean text '${postText}`);
-        }
-        const rt = new RichText({
-          text: postText,
-        });
-        await rt.detectFacets(agent);
-        const postRecord = {
-          $type: "app.bsky.feed.post",
-          text: rt.text,
-          facets: rt.facets,
-          createdAt: tweet_createdAt,
-          embed:
-            embeddedImage.length > 0
-              ? { $type: "app.bsky.embed.images", images: embeddedImage }
-              : undefined,
-        };
-
-        if (!simulate) {
-          // Wait to avoid exceeding API rate limits
-          await new Promise((resolve) => setTimeout(resolve, ApiDelay));
-
-          const recordData = await agent!.post(postRecord);
-          const i = recordData.uri.lastIndexOf("/");
-          if (i > 0) {
-            const rkey = recordData.uri.substring(i + 1);
-            const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME!}/post/${rkey}`;
-            console.log("Bluesky post created, URL: " + postUri);
-
-            importedTweet++;
+          if (!simulate) {
+            await new Promise((resolve) => setTimeout(resolve, ApiDelay));
+            const recordData = await agent.post(postRecord);
+            const postRkey = recordData.uri.split("/").pop();
+            if (postRkey) {
+              const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}/post/${postRkey}`;
+              console.log("Bluesky post created:", postUri);
+              importedTweet++;
+            }
           } else {
-            console.warn(recordData);
+            importedTweet++;
           }
-        } else {
-          importedTweet++;
+        } catch (error) {
+          console.error(`Error processing tweet ${tweet.id}:`, error);
         }
       }
+
+      console.log(`Import completed. ${importedTweet} tweets imported.`);
     } catch (error) {
-      console.log(error);
+      console.error("Error during import:", error);
+    } finally {
+      setIsProcessing(false);
+      setProgress(100);
     }
   };
 
   return (
-    <div>
-      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
-        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-          <h1 className="text-2xl font-bold mb-6 text-center text-blue-600">
-            Port Twitter posts to Bluesky
-          </h1>
-          <div className="mt-4">
-            <label
-              htmlFor="file-upload"
-              className="flex flex-col items-center px-4 py-6 bg-white text-blue rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-blue-600 hover:text-white"
-            >
-              <span className="mt-2 text-base leading-normal">
-                Select a folder
-              </span>
-              <input
-                id="file-upload"
-                type="file"
-                onChange={(e) => {
-                  setFiles(e.target.files);
-                }}
-                className="hidden"
-                {...({
-                  webkitdirectory: "true",
-                } as React.InputHTMLAttributes<HTMLInputElement>)}
-              />
-            </label>
-          </div>
-          {files && files?.length > 0 ? (
-            <div className="mt-4">
-              <p className="text-sm text-gray-600">
-                {files.length} files selected
-              </p>
-              <div>
-                <FileFoundCard
-                  cardName="data/tweets.js"
-                  found={CheckFile("data/tweets.js")}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="text-center mt-2">
-              Choose the folder containing your Twitter posts to import them
-              into Bluesky.
-            </div>
-          )}
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center">
+      <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
+        <h1 className="text-2xl font-bold mb-6 text-center text-blue-600">
+          Port Twitter posts to Bluesky
+        </h1>
+        <div className="mt-4">
+          <label
+            htmlFor="file-upload"
+            className="flex flex-col items-center px-4 py-6 bg-white text-blue rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-blue-600 hover:text-white"
+          >
+            <Upload className="w-8 h-8" />
+            <span className="mt-2 text-base leading-normal">
+              Select a folder
+            </span>
+            <input
+              id="file-upload"
+              type="file"
+              onChange={(e) => setFiles(e.target.files)}
+              className="hidden"
+              {...({
+                webkitdirectory: "true",
+              } as React.InputHTMLAttributes<HTMLInputElement>)}
+            />
+          </label>
         </div>
+        {files && files.length > 0 ? (
+          <div className="mt-4">
+            <p className="text-sm text-gray-600">
+              {files.length} files selected
+            </p>
+            <div>
+              <FileFoundCard
+                cardName="tweets.js"
+                found={CheckFile("tweets.js")}
+              />
+            </div>
+            {isProcessing && (
+              <div className="mt-4">
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div
+                    className="bg-blue-600 h-2.5 rounded-full"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  Processing... {progress}%
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center mt-2">
+            Choose the folder containing your Twitter posts to import them into
+            Bluesky.
+          </div>
+        )}
         <Button
-          onClick={() => {
-            tweet_to_bsky();
-          }}
+          onClick={tweet_to_bsky}
+          className="w-full mt-4"
+          disabled={!files || files.length === 0 || isProcessing}
         >
-          Buton post
+          {isProcessing ? "Processing..." : "Import Posts"}
         </Button>
       </div>
     </div>
   );
 };
+
 export default Home;
