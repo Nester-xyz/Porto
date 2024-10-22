@@ -24,20 +24,27 @@ const Home = () => {
   const ApiDelay = 2500;
   const BLUESKY_USERNAME = "khadgaprasadoli";
   const [files, setFiles] = useState<FileList | null>(null);
+  const [tweetsLocation, setTweetsLocation] = useState<string | null>(null);
 
   const [fileMap, setFileMap] = useState<Map<string, File>>(new Map());
 
+  const findFile = (fileName: string): File | null => {
+    if (!fileMap || fileMap.size === 0) return null;
+
+    // Find the file path that matches the given fileName
+    const filePath = Array.from(fileMap.keys()).find((filePath) =>
+      filePath.endsWith(fileName),
+    );
+
+    // If a matching file path is found, return the corresponding File object
+    return filePath ? fileMap.get(filePath) || null : null;
+  };
+
   const CheckFile: TcheckFile = (filename: string) => {
-    // If fileMap is not populated or is empty, return false
-    if (!fileMap || fileMap.size === 0) return false;
-
-    // Check if any file in the map ends with the filename
-    const fileExists = Array.from(fileMap.keys()).some((filePath) => {
-      return filePath.endsWith(filename);
-    });
-
-    console.log(`File '${filename}' exists:`, fileExists);
-    return true;
+    if (findFile(filename)) {
+      return true;
+    }
+    return false;
   };
 
   useEffect(() => {
@@ -46,11 +53,16 @@ const Home = () => {
       for (const file of files) {
         // webkitRelativePath contains the folder structure
         map.set(file.webkitRelativePath, file);
-        console.log(file);
       }
       setFileMap(map);
     }
   }, [files]);
+
+  useEffect(() => {
+    const file = findFile("tweets.js");
+    setTweetsLocation(file ? file.webkitRelativePath : null);
+  }, [fileMap]);
+
   async function resolveShortURL(url: string) {
     try {
       const response = await fetch(url, { method: "HEAD", redirect: "follow" });
@@ -117,7 +129,7 @@ const Home = () => {
 
       const tweetsFilePath =
         "twitter-2024-10-19-35760849e23a68f0a317a9be2c78a4cc8b0364243805cdd78e37269179f0b0b9/data/tweets.js";
-      const tweetsFile = fileMap.get(tweetsFilePath);
+      const tweetsFile = fileMap.get(tweetsLocation!);
       console.log(tweetsFile);
 
       if (!tweetsFile) {
