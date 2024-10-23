@@ -42,7 +42,7 @@ const Home = () => {
   const [totalTweets, setTotalTweets] = useState(0);
   const [validTweets, setValidTweets] = useState(0);
   const ApiDelay = 2500;
-  const BLUESKY_USERNAME = (localStorage.getItem("handle"))?.split(".")[0];
+  const BLUESKY_USERNAME = localStorage.getItem("handle")?.split(".")[0];
   const [files, setFiles] = useState<FileList | null>(null);
   const [tweetsLocation, setTweetsLocation] = useState<string | null>(null);
   const [fileMap, setFileMap] = useState<Map<string, File>>(new Map());
@@ -121,12 +121,22 @@ const Home = () => {
       });
     }
 
+    function removeTcoLinks(text: string) {
+      // Pattern matches t.co/ followed by any non-whitespace characters
+      const pattern = /(https?:\/\/)?t\.co\/\S+/g;
+
+      // Replace matches with empty string and trim any extra whitespace
+      const cleanedText = text.replace(pattern, "").trim();
+
+      return cleanedText;
+    }
+
     newText = he.decode(newText);
-    return newText;
+    return removeTcoLinks(newText);
   }
 
   const parseTweetsFile = (content: string): Tweet[] => {
-    console.log(content, "this is content");
+    // console.log(content, "this is content");
     try {
       return JSON.parse(content);
     } catch {
@@ -261,6 +271,8 @@ const Home = () => {
           const rt = new RichText({ text: postText });
           await rt.detectFacets(agent);
 
+          console.log();
+
           const postRecord = {
             $type: "app.bsky.feed.post",
             text: rt.text,
@@ -313,9 +325,11 @@ const Home = () => {
         const tweetDate = new Date(tweet.tweet.created_at);
         if (dateRange.min_date && tweetDate < dateRange.min_date) return false;
         if (dateRange.max_date && tweetDate > dateRange.max_date) return false;
-        return !tweet.tweet.in_reply_to_screen_name &&
+        return (
+          !tweet.tweet.in_reply_to_screen_name &&
           !tweet.tweet.full_text.startsWith("@") &&
-          !tweet.tweet.full_text.startsWith("RT ");
+          !tweet.tweet.full_text.startsWith("RT ")
+        );
       });
 
       setTotalTweets(tweets.length);
@@ -393,7 +407,8 @@ const Home = () => {
               Valid tweets to import: {validTweets}
             </p>
             <p className="text-sm text-gray-600">
-              Excluded: {totalTweets - validTweets} (retweets, replies, or outside date range)
+              Excluded: {totalTweets - validTweets} (retweets, replies, or
+              outside date range)
             </p>
           </div>
         </Card>
@@ -438,14 +453,23 @@ const Home = () => {
         <div className="mb-8">
           <div className="flex items-center justify-center mb-4">
             <div className="flex items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200'
-                }`}>
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  currentStep >= 1 ? "bg-blue-600 text-white" : "bg-gray-200"
+                }`}
+              >
                 1
               </div>
-              <div className={`w-16 h-1 ${currentStep === 2 ? 'bg-blue-600' : 'bg-gray-200'
-                }`} />
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'
-                }`}>
+              <div
+                className={`w-16 h-1 ${
+                  currentStep === 2 ? "bg-blue-600" : "bg-gray-200"
+                }`}
+              />
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  currentStep === 2 ? "bg-blue-600 text-white" : "bg-gray-200"
+                }`}
+              >
                 2
               </div>
             </div>
