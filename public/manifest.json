@@ -7,9 +7,10 @@
     "default_icon": "icon.png"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
-  "permissions": ["tabs", "activeTab", "windows"],
+  "permissions": ["tabs", "activeTab", "windows", "storage", "unlimitedStorage"],
   "icons": {
     "32": "icon.png"
   }

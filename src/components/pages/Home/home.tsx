@@ -1,14 +1,15 @@
 import { useLogInContext } from "@/hooks/LogInContext";
+import { makeFileMapSerializable } from '../../../utils/serializableUtils';
 import { useState, useEffect } from "react";
 import FileFoundCard from "@/components/FileFoundCard";
 import URI from "urijs";
 import { Upload } from "lucide-react";
 import he from "he";
 import { Button } from "@/components/ui/button";
-import { RichText } from "@atproto/api";
 import DateRangePicker from "@/components/DateRangePicker";
 import { Card } from "@/components/ui/card";
-
+import { SerializableFile } from "../../../utils/serializableUtils"
+import { sendLargeMessage, CHUNK_SIZE } from '../../../utils/fileTransferUtils';
 interface DateRange {
   min_date: Date | undefined;
   max_date: Date | undefined;
@@ -91,6 +92,23 @@ const Home = () => {
     setMediaLocation(`${parentFolder}/tweets_media`);
   }, [fileMap]);
 
+  useEffect(() => {
+    const handleProgress = (message: any) => {
+      if (message.action === "importProgress") {
+        setProgress(message.state.progress);
+        // Update other state as needed
+      }
+      if (message.action === "importComplete") {
+        setIsProcessing(false);
+        setProgress(100);
+        // Handle completion
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleProgress);
+    return () => chrome.runtime.onMessage.removeListener(handleProgress);
+  }, []);
+
   async function resolveShortURL(url: string) {
     try {
       const response = await fetch(url, { method: "HEAD", redirect: "follow" });
@@ -142,14 +160,8 @@ const Home = () => {
   };
 
   const tweet_to_bsky = async () => {
-    // TODO: un comment this code
     if (!agent) {
       console.log("No agent found");
-      return;
-    }
-
-    if (!fileMap.size) {
-      console.log("No files selected");
       return;
     }
 
@@ -157,9 +169,6 @@ const Home = () => {
     setProgress(0);
 
     try {
-      console.log(`Import started at ${new Date().toISOString()}`);
-      console.log(`Simulate is ${simulate ? "ON" : "OFF"}`);
-
       const tweetsFile = fileMap.get(tweetsLocation!);
       if (!tweetsFile) {
         throw new Error(`Tweets file not found at ${tweetsLocation}`);
@@ -168,133 +177,100 @@ const Home = () => {
       const tweetsFileContent = await tweetsFile.text();
       const tweets = parseTweetsFile(tweetsFileContent);
 
-      if (!Array.isArray(tweets)) {
-        throw new Error("Parsed content is not an array");
-      }
+      // Process and send files in chunks
+      const chunks: Record<string, SerializableFile>[] = [];
+      let currentChunk: Record<string, SerializableFile> = {};
+      let currentChunkSize = 0;
 
-      let importedTweet = 0;
-      const sortedTweets = tweets
-        .filter((tweet) => {
-          const tweetDate = new Date(tweet.tweet.created_at);
-          if (dateRange.min_date && tweetDate < dateRange.min_date)
-            return false;
-          if (dateRange.max_date && tweetDate > dateRange.max_date)
-            return false;
-          return true;
-        })
-        .sort((a, b) => {
-          return (
-            new Date(a.tweet.created_at).getTime() -
-            new Date(b.tweet.created_at).getTime()
-          );
-        });
+      for (const [path, file] of fileMap.entries()) {
+        if (file.size > 0) {
+          try {
+            const arrayBuffer = await file.arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
 
-      for (const [index, { tweet }] of sortedTweets.entries()) {
-        try {
-          setProgress(Math.round((index / sortedTweets.length) * 100));
-          const tweetDate = new Date(tweet.created_at);
-          const tweet_createdAt = tweetDate.toISOString();
+            const serializedFile: SerializableFile = {
+              name: file.name,
+              path: path,
+              type: file.type,
+              size: file.size,
+              lastModified: file.lastModified,
+              arrayBuffer: Array.from(uint8Array)
+            };
 
-          if (
-            tweet.in_reply_to_screen_name ||
-            tweet.full_text.startsWith("@") ||
-            tweet.full_text.startsWith("RT ")
-          ) {
-            continue;
-          }
-
-          let embeddedImage = [] as any;
-          let hasVideo = false;
-
-          if (tweet.extended_entities?.media) {
-            for (const media of tweet.extended_entities.media) {
-              if (media.type === "photo") {
-                const fileType = media.media_url.split(".").pop();
-                const mimeType =
-                  fileType === "png"
-                    ? "image/png"
-                    : fileType === "jpg"
-                      ? "image/jpeg"
-                      : "";
-
-                if (!mimeType) continue;
-                if (embeddedImage.length >= 4) break;
-
-                const mediaFilename = `${mediaLocation}/${tweet.id}-${media.media_url.split("/").pop()}`;
-                const imageFile = fileMap.get(mediaFilename);
-
-                if (imageFile) {
-                  const imageBuffer = await imageFile.arrayBuffer();
-                  if (!simulate) {
-                    const blobRecord = await agent.uploadBlob(imageBuffer, {
-                      encoding: mimeType,
-                    });
-
-                    embeddedImage.push({
-                      alt: "",
-                      image: {
-                        $type: "blob",
-                        ref: blobRecord.data.blob.ref,
-                        mimeType: blobRecord.data.blob.mimeType,
-                        size: blobRecord.data.blob.size,
-                      },
-                    });
-                  }
-                }
-              } else if (media.type === "video") {
-                hasVideo = true;
-                break;
-              }
+            if (currentChunkSize + file.size > CHUNK_SIZE) {
+              chunks.push(currentChunk);
+              currentChunk = {};
+              currentChunkSize = 0;
             }
+
+            currentChunk[path] = serializedFile;
+            currentChunkSize += file.size;
+          } catch (error) {
+            console.error(`Error processing file ${path}:`, error);
           }
-
-          if (hasVideo) continue;
-
-          let postText = tweet.full_text;
-          if (!simulate) {
-            postText = await cleanTweetText(tweet.full_text);
-            if (postText.length > 300) {
-              postText = postText.substring(0, 296) + "...";
-            }
-          }
-
-          const rt = new RichText({ text: postText });
-          await rt.detectFacets(agent);
-
-          const postRecord = {
-            $type: "app.bsky.feed.post",
-            text: rt.text,
-            facets: rt.facets,
-            createdAt: tweet_createdAt,
-            embed:
-              embeddedImage.length > 0
-                ? { $type: "app.bsky.embed.images", images: embeddedImage }
-                : undefined,
-          };
-
-          if (!simulate) {
-            await new Promise((resolve) => setTimeout(resolve, ApiDelay));
-            const recordData = await agent.post(postRecord);
-            const postRkey = recordData.uri.split("/").pop();
-            if (postRkey) {
-              const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}/post/${postRkey}`;
-              console.log("Bluesky post created:", postUri);
-              importedTweet++;
-            }
-          } else {
-            importedTweet++;
-          }
-        } catch (error) {
-          console.error(`Error processing tweet ${tweet.id}:`, error);
         }
       }
 
-      console.log(`Import completed. ${importedTweet} tweets imported.`);
+      if (Object.keys(currentChunk).length > 0) {
+        chunks.push(currentChunk);
+      }
+
+      // Send chunks
+      for (let i = 0; i < chunks.length; i++) {
+        await new Promise<void>((resolve, reject) => {
+          chrome.runtime.sendMessage({
+            action: "fileChunk",
+            chunkIndex: i,
+            totalChunks: chunks.length,
+            chunk: chunks[i],
+            isFinal: i === chunks.length - 1
+          }, response => {
+            if (chrome.runtime.lastError) {
+              reject(chrome.runtime.lastError);
+            } else {
+              setProgress(Math.round((i + 1) / chunks.length * 50));
+              resolve();
+            }
+          });
+        });
+      }
+
+      // Start import
+      await new Promise<void>((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: "startImport",
+          data: {
+            tweets,
+            mediaLocation,
+            BLUESKY_USERNAME,
+            ApiDelay
+          }
+        }, response => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      // Listen for progress updates
+      const progressListener = (message: any) => {
+        if (message.action === "importProgress") {
+          setProgress(50 + Math.round(message.state.progress * 0.5));
+        } else if (message.action === "importComplete") {
+          setIsProcessing(false);
+          setProgress(100);
+          chrome.runtime.onMessage.removeListener(progressListener);
+        }
+      };
+
+      chrome.runtime.onMessage.addListener(progressListener);
+
     } catch (error) {
-      console.error("Error during import:", error);
-    } finally {
+      console.error("Error starting import:", error);
       setIsProcessing(false);
-      setProgress(100);
+      throw error;
     }
   };
 
