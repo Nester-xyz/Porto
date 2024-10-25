@@ -1,15 +1,19 @@
 {
   "manifest_version": 3,
-  "name": "My Chrome Extension",
+  "name": "Porto - port your Tweets to Bluesky",
   "version": "1.0.0",
-  "description": "A basic Chrome extension starter using Vite and TypeScript.",
+  "description": "A chrome extension to port all your twitter/X tweets to bluesky at a click of a button",
   "action": {
     "default_icon": "icon.png"
   },
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["tabs", "activeTab", "windows"],
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "windows"
+  ],
   "icons": {
     "32": "icon.png"
   }
