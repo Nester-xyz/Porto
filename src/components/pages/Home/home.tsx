@@ -16,12 +16,19 @@ interface DateRange {
 
 type TcheckFile = (fileName: string) => boolean;
 
+interface Entities {
+  urls: any[];
+  symbols: any[];
+  hashtags: any[];
+}
+
 interface Tweet {
   tweet: {
     created_at: string;
     id: string;
     full_text: string;
     in_reply_to_screen_name: string | null;
+    entities: Entities;
     extended_entities?: {
       media: {
         type: string;
@@ -178,6 +185,24 @@ const Home = () => {
       const tweetsFileContent = await tweetsFile.text();
       const tweets = parseTweetsFile(tweetsFileContent);
 
+      const isQuote = (id: string) => {
+        const twitterUrlRegex = /^https:\/\/twitter\.com\//;
+        const tweet = tweets.find((tweet) => tweet.tweet.id === id);
+        if (!tweet) {
+          throw new Error(`Tweet with id ${id} not found`);
+        }
+
+        // check if tweet has any urls
+        const urls = tweet.tweet.entities.urls;
+        if (urls.length < 0) return false;
+
+        const isQuoted = urls.find((url) =>
+          twitterUrlRegex.test(url.expanded_url),
+        );
+
+        return isQuoted ? true : false;
+      };
+
       if (!Array.isArray(tweets)) {
         throw new Error("Parsed content is not an array");
       }
@@ -208,7 +233,8 @@ const Home = () => {
           if (
             tweet.in_reply_to_screen_name ||
             tweet.full_text.startsWith("@") ||
-            tweet.full_text.startsWith("RT ")
+            tweet.full_text.startsWith("RT ") ||
+            isQuote(tweet.id)
           ) {
             continue;
           }
