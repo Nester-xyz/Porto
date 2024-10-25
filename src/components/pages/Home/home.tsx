@@ -1,42 +1,20 @@
 import { useLogInContext } from "@/hooks/LogInContext";
 import { useState, useEffect } from "react";
 import FileFoundCard from "@/components/FileFoundCard";
-import URI from "urijs";
-import { Upload } from "lucide-react";
-import he from "he";
 import { Button } from "@/components/ui/button";
 import { RichText } from "@atproto/api";
 import DateRangePicker from "@/components/DateRangePicker";
 import { Card } from "@/components/ui/card";
-
-interface DateRange {
-  min_date: Date | undefined;
-  max_date: Date | undefined;
-}
-
-type TcheckFile = (fileName: string) => boolean;
-
-interface Entities {
-  urls: any[];
-  symbols: any[];
-  hashtags: any[];
-}
-
-interface Tweet {
-  tweet: {
-    created_at: string;
-    id: string;
-    full_text: string;
-    in_reply_to_screen_name: string | null;
-    entities: Entities;
-    extended_entities?: {
-      media: {
-        type: string;
-        media_url: string;
-      }[];
-    };
-  };
-}
+import { Tweet, DateRange } from "@/types/tweets.type";
+import {
+  cleanTweetText,
+  findFileFromMap,
+  isQuote,
+  parseTweetsFile,
+  sortTweetsWithDateRange,
+} from "@/components/utils";
+import { CheckCircle, Upload } from "lucide-react";
+import { SiTicktick } from "react-icons/si";
 
 const Home = () => {
   const { agent } = useLogInContext();
@@ -58,23 +36,8 @@ const Home = () => {
   const [progress, setProgress] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const findFile = (fileName: string): File | null => {
-    if (!fileMap || fileMap.size === 0) return null;
-
-    const filePath = Array.from(fileMap.keys()).find((filePath) => {
-      const pathParts = filePath.split("/");
-      const actualFileName = pathParts[pathParts.length - 1];
-
-      // Check for exact match of the filename
-      return actualFileName === fileName;
-    });
-
-    return filePath ? fileMap.get(filePath) || null : null;
-  };
-
-  const CheckFile: TcheckFile = (filename: string) => {
-    return !!findFile(filename);
-  };
+  const findFile = (fineName: string) => findFileFromMap(fileMap, fineName);
+  const CheckFile = (filename: string) => !!findFile(filename);
 
   useEffect(() => {
     if (files) {
@@ -89,87 +52,20 @@ const Home = () => {
   useEffect(() => {
     const file = findFile("tweets.js");
     setTweetsLocation(file ? file.webkitRelativePath : null);
-
     const parentFolder = file?.webkitRelativePath
       ?.split("/")
       .slice(0, -1)
       .join("/");
-
     setMediaLocation(`${parentFolder}/tweets_media`);
   }, [fileMap]);
 
-  async function resolveShortURL(url: string) {
-    try {
-      const response = await fetch(url, { method: "HEAD", redirect: "follow" });
-      return response.url;
-    } catch (error) {
-      console.warn(`Error parsing url ${url}:`, error);
-      return url;
-    }
-  }
-
-  async function cleanTweetText(tweetFullText: string): Promise<string> {
-    let newText = tweetFullText;
-    const urls: string[] = [];
-    URI.withinString(tweetFullText, (url) => {
-      urls.push(url);
-      return url;
-    });
-
-    if (urls.length > 0) {
-      const newUrls = await Promise.all(urls.map(resolveShortURL));
-      let j = 0;
-      newText = URI.withinString(tweetFullText, (url) => {
-        if (newUrls[j].indexOf("/photo/") > 0) {
-          j++;
-          return "";
-        }
-        return newUrls[j++];
-      });
-    }
-
-    function removeTcoLinks(text: string) {
-      // Pattern matches t.co/ followed by any non-whitespace characters
-      const pattern = /(https?:\/\/)?t\.co\/\S+/g;
-
-      // Replace matches with empty string and trim any extra whitespace
-      const cleanedText = text.replace(pattern, "").trim();
-
-      return cleanedText;
-    }
-
-    newText = he.decode(newText);
-    return removeTcoLinks(newText);
-  }
-
-  const parseTweetsFile = (content: string): Tweet[] => {
-    // console.log(content, "this is content");
-    try {
-      return JSON.parse(content);
-    } catch {
-      try {
-        const jsonContent = content
-          .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, "")
-          .replace(/;$/, "");
-        return JSON.parse(jsonContent);
-      } catch (error) {
-        throw new Error(`Failed to parse tweets file: ${error}`);
-      }
-    }
-  };
-
   const tweet_to_bsky = async () => {
-    // TODO: un comment this code
-    if (!agent) {
-      console.log("No agent found");
-      return;
-    }
+    if (!agent) throw new Error("Agent not found");
 
     if (!fileMap.size) {
       console.log("No files selected");
       return;
     }
-
     setIsProcessing(true);
     setProgress(0);
 
@@ -185,44 +81,13 @@ const Home = () => {
       const tweetsFileContent = await tweetsFile.text();
       const tweets = parseTweetsFile(tweetsFileContent);
 
-      const isQuote = (id: string) => {
-        const twitterUrlRegex = /^https:\/\/twitter\.com\//;
-        const tweet = tweets.find((tweet) => tweet.tweet.id === id);
-        if (!tweet) {
-          throw new Error(`Tweet with id ${id} not found`);
-        }
-
-        // check if tweet has any urls
-        const urls = tweet.tweet.entities.urls;
-        if (urls.length < 0) return false;
-
-        const isQuoted = urls.find((url) =>
-          twitterUrlRegex.test(url.expanded_url),
-        );
-
-        return isQuoted ? true : false;
-      };
-
       if (!Array.isArray(tweets)) {
         throw new Error("Parsed content is not an array");
       }
 
       let importedTweet = 0;
-      const sortedTweets = tweets
-        .filter((tweet) => {
-          const tweetDate = new Date(tweet.tweet.created_at);
-          if (dateRange.min_date && tweetDate < dateRange.min_date)
-            return false;
-          if (dateRange.max_date && tweetDate > dateRange.max_date)
-            return false;
-          return true;
-        })
-        .sort((a, b) => {
-          return (
-            new Date(a.tweet.created_at).getTime() -
-            new Date(b.tweet.created_at).getTime()
-          );
-        });
+
+      const sortedTweets = sortTweetsWithDateRange(tweets, dateRange);
 
       for (const [index, { tweet }] of sortedTweets.entries()) {
         try {
@@ -234,7 +99,7 @@ const Home = () => {
             tweet.in_reply_to_screen_name ||
             tweet.full_text.startsWith("@") ||
             tweet.full_text.startsWith("RT ") ||
-            isQuote(tweet.id)
+            isQuote(tweets, tweet.id)
           ) {
             continue;
           }
@@ -326,6 +191,7 @@ const Home = () => {
           console.error(`Error processing tweet ${tweet.id}:`, error);
         }
       }
+      setCurrentStep(3);
 
       console.log(`Import completed. ${importedTweet} tweets imported.`);
     } catch (error) {
@@ -347,19 +213,8 @@ const Home = () => {
       const tweetsFileContent = await tweetsFile.text();
       const tweets = parseTweetsFile(tweetsFileContent);
 
-      const filteredTweets = tweets.filter((tweet) => {
-        const tweetDate = new Date(tweet.tweet.created_at);
-        if (dateRange.min_date && tweetDate < dateRange.min_date) return false;
-        if (dateRange.max_date && tweetDate > dateRange.max_date) return false;
-        return (
-          !tweet.tweet.in_reply_to_screen_name &&
-          !tweet.tweet.full_text.startsWith("@") &&
-          !tweet.tweet.full_text.startsWith("RT ")
-        );
-      });
-
       setTotalTweets(tweets.length);
-      setValidTweets(filteredTweets.length);
+      setValidTweets(sortTweetsWithDateRange.length);
       setCurrentStep(2);
     } catch (error) {
       console.error("Error analyzing tweets:", error);
@@ -473,6 +328,82 @@ const Home = () => {
     </div>
   );
 
+  const renderStep3 = () => (
+    <div className="space-y-6">
+      <div className="grid gap-4">
+        <div className="text-center">
+          <div className="flex justify-center mb-4">
+            <CheckCircle className="w-16 h-16 text-green-500" />
+          </div>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+            Import Complete!
+          </h2>
+          <p className="text-gray-600 mb-6">
+            Your tweets have been successfully imported to Bluesky
+          </p>
+        </div>
+
+        <Card className="p-4">
+          <h3 className="font-semibold mb-2">Import Summary</h3>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-600">
+              Total tweets found: {totalTweets}
+            </p>
+            <p className="text-sm text-gray-600">
+              Successfully imported: {validTweets}
+            </p>
+            <p className="text-sm text-gray-600">
+              Skipped: {totalTweets - validTweets} (retweets, replies, or
+              outside date range)
+            </p>
+          </div>
+        </Card>
+
+        <Card className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-none">
+          <div className="text-center space-y-4">
+            <h3 className="font-semibold text-gray-900">Support Our Work</h3>
+            <p className="text-sm text-gray-600">
+              If you found this tool helpful, consider supporting us to keep it
+              free and maintained
+            </p>
+            <Button
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg transform transition hover:scale-105"
+              onClick={() =>
+                window.open(
+                  "https://www.paypal.com/donate/?hosted_button_id=PFD7AXJMPSDYJ",
+                  "_blank",
+                )
+              }
+            >
+              Donate
+            </Button>
+          </div>
+        </Card>
+
+        <div className="flex space-x-4 mt-4">
+          <Button
+            onClick={() => setCurrentStep(1)}
+            variant="outline"
+            className="flex-1"
+          >
+            Import More Tweets
+          </Button>
+          <Button
+            onClick={() =>
+              window.open(
+                `https://bsky.app/profile/${BLUESKY_USERNAME}.bsky.social`,
+                "_blank",
+              )
+            }
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
+          >
+            Open Bluesky
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
       <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
@@ -488,15 +419,27 @@ const Home = () => {
               </div>
               <div
                 className={`w-16 h-1 ${
-                  currentStep === 2 ? "bg-blue-600" : "bg-gray-200"
+                  currentStep >= 2 ? "bg-blue-600" : "bg-gray-200"
                 }`}
               />
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  currentStep === 2 ? "bg-blue-600 text-white" : "bg-gray-200"
+                  currentStep >= 2 ? "bg-blue-600 text-white" : "bg-gray-200"
                 }`}
               >
                 2
+              </div>
+              <div
+                className={`w-16 h-1 ${
+                  currentStep === 3 ? "bg-blue-600" : "bg-gray-200"
+                }`}
+              />
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  currentStep === 3 ? "bg-green-600 text-white" : "bg-gray-200"
+                }`}
+              >
+                <SiTicktick />
               </div>
             </div>
           </div>
@@ -505,7 +448,11 @@ const Home = () => {
           </h1>
         </div>
 
-        {currentStep === 1 ? renderStep1() : renderStep2()}
+        {currentStep === 1
+          ? renderStep1()
+          : currentStep === 2
+            ? renderStep2()
+            : renderStep3()}
       </div>
     </div>
   );
