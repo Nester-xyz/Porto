@@ -1,19 +1,10 @@
+// Home.tsx
 import { useLogInContext } from "@/hooks/LogInContext";
-import { makeFileMapSerializable } from '../../../utils/serializableUtils';
 import { useState, useEffect } from "react";
-import FileFoundCard from "@/components/FileFoundCard";
-import URI from "urijs";
-import { Upload } from "lucide-react";
-import he from "he";
-import { Button } from "@/components/ui/button";
-import DateRangePicker from "@/components/DateRangePicker";
-import { Card } from "@/components/ui/card";
-import { SerializableFile } from "../../../utils/serializableUtils"
-import { sendLargeMessage, CHUNK_SIZE } from '../../../utils/fileTransferUtils';
-interface DateRange {
-  min_date: Date | undefined;
-  max_date: Date | undefined;
-}
+import { DateRange } from "../../../utils/serializableUtils";
+import { renderStep1, renderStep2 } from "@/lib/renderers";
+
+
 
 type TcheckFile = (fileName: string) => boolean;
 
@@ -31,6 +22,9 @@ interface Tweet {
     };
   };
 }
+
+
+
 
 const Home = () => {
   const { agent } = useLogInContext();
@@ -54,15 +48,10 @@ const Home = () => {
 
   const findFile = (fileName: string): File | null => {
     if (!fileMap || fileMap.size === 0) return null;
-
     const filePath = Array.from(fileMap.keys()).find((filePath) => {
       const pathParts = filePath.split("/");
-      const actualFileName = pathParts[pathParts.length - 1];
-
-      // Check for exact match of the filename
-      return actualFileName === fileName;
+      return pathParts[pathParts.length - 1] === fileName;
     });
-
     return filePath ? fileMap.get(filePath) || null : null;
   };
 
@@ -83,12 +72,7 @@ const Home = () => {
   useEffect(() => {
     const file = findFile("tweets.js");
     setTweetsLocation(file ? file.webkitRelativePath : null);
-
-    const parentFolder = file?.webkitRelativePath
-      ?.split("/")
-      .slice(0, -1)
-      .join("/");
-
+    const parentFolder = file?.webkitRelativePath?.split("/").slice(0, -1).join("/");
     setMediaLocation(`${parentFolder}/tweets_media`);
   }, [fileMap]);
 
@@ -96,12 +80,10 @@ const Home = () => {
     const handleProgress = (message: any) => {
       if (message.action === "importProgress") {
         setProgress(message.state.progress);
-        // Update other state as needed
       }
       if (message.action === "importComplete") {
         setIsProcessing(false);
         setProgress(100);
-        // Handle completion
       }
     };
 
@@ -109,42 +91,8 @@ const Home = () => {
     return () => chrome.runtime.onMessage.removeListener(handleProgress);
   }, []);
 
-  async function resolveShortURL(url: string) {
-    try {
-      const response = await fetch(url, { method: "HEAD", redirect: "follow" });
-      return response.url;
-    } catch (error) {
-      console.warn(`Error parsing url ${url}:`, error);
-      return url;
-    }
-  }
-
-  async function cleanTweetText(tweetFullText: string): Promise<string> {
-    let newText = tweetFullText;
-    const urls: string[] = [];
-    URI.withinString(tweetFullText, (url) => {
-      urls.push(url);
-      return url;
-    });
-
-    if (urls.length > 0) {
-      const newUrls = await Promise.all(urls.map(resolveShortURL));
-      let j = 0;
-      newText = URI.withinString(tweetFullText, (url) => {
-        if (newUrls[j].indexOf("/photo/") > 0) {
-          j++;
-          return "";
-        }
-        return newUrls[j++];
-      });
-    }
-
-    newText = he.decode(newText);
-    return newText;
-  }
-
-  const parseTweetsFile = (content: string): Tweet[] => {
-    console.log(content, "this is content");
+  const parseTweetsFile = async (file: File): Promise<Tweet[]> => {
+    const content = await file.text();
     try {
       return JSON.parse(content);
     } catch {
@@ -157,6 +105,41 @@ const Home = () => {
         throw new Error(`Failed to parse tweets file: ${error}`);
       }
     }
+  };
+
+  const sendFileInChunks = async (file: File): Promise<string> => {
+    const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+    const fileId = `file_${Date.now()}`;
+    const totalChunks = Math.ceil(file.size / chunkSize);
+
+    // Send initial file metadata
+    await chrome.runtime.sendMessage({
+      action: 'fileTransfer',
+      fileId,
+      fileName: file.name,
+      fileType: file.type,
+      totalSize: file.size
+    });
+
+    // Read and send file in chunks
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * chunkSize;
+      const end = Math.min(start + chunkSize, file.size);
+      const chunk = uint8Array.slice(start, end);
+
+      await chrome.runtime.sendMessage({
+        type: 'chunk',
+        id: fileId,
+        chunkIndex: i,
+        totalChunks,
+        data: Array.from(chunk)
+      });
+    }
+
+    return fileId;
   };
 
   const tweet_to_bsky = async () => {
@@ -174,98 +157,30 @@ const Home = () => {
         throw new Error(`Tweets file not found at ${tweetsLocation}`);
       }
 
-      const tweetsFileContent = await tweetsFile.text();
-      const tweets = parseTweetsFile(tweetsFileContent);
+      // Send tweets file in chunks first
+      const tweetsFileId = await sendFileInChunks(tweetsFile);
 
-      // Process and send files in chunks
-      const chunks: Record<string, SerializableFile>[] = [];
-      let currentChunk: Record<string, SerializableFile> = {};
-      let currentChunkSize = 0;
-
+      // Prepare and send media files
+      const mediaFileIds: Record<string, string> = {};
       for (const [path, file] of fileMap.entries()) {
-        if (file.size > 0) {
-          try {
-            const arrayBuffer = await file.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
-
-            const serializedFile: SerializableFile = {
-              name: file.name,
-              path: path,
-              type: file.type,
-              size: file.size,
-              lastModified: file.lastModified,
-              arrayBuffer: Array.from(uint8Array)
-            };
-
-            if (currentChunkSize + file.size > CHUNK_SIZE) {
-              chunks.push(currentChunk);
-              currentChunk = {};
-              currentChunkSize = 0;
-            }
-
-            currentChunk[path] = serializedFile;
-            currentChunkSize += file.size;
-          } catch (error) {
-            console.error(`Error processing file ${path}:`, error);
-          }
+        if (path.includes('tweets_media') && file.size > 0) {
+          const fileId = await sendFileInChunks(file);
+          mediaFileIds[file.name] = fileId;
         }
       }
 
-      if (Object.keys(currentChunk).length > 0) {
-        chunks.push(currentChunk);
-      }
-
-      // Send chunks
-      for (let i = 0; i < chunks.length; i++) {
-        await new Promise<void>((resolve, reject) => {
-          chrome.runtime.sendMessage({
-            action: "fileChunk",
-            chunkIndex: i,
-            totalChunks: chunks.length,
-            chunk: chunks[i],
-            isFinal: i === chunks.length - 1
-          }, response => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              setProgress(Math.round((i + 1) / chunks.length * 50));
-              resolve();
-            }
-          });
-        });
-      }
-
-      // Start import
-      await new Promise<void>((resolve, reject) => {
-        chrome.runtime.sendMessage({
-          action: "startImport",
-          data: {
-            tweets,
-            mediaLocation,
-            BLUESKY_USERNAME,
-            ApiDelay
-          }
-        }, response => {
-          if (chrome.runtime.lastError) {
-            reject(chrome.runtime.lastError);
-          } else {
-            resolve();
-          }
-        });
+      // Start the import process with file IDs
+      await chrome.runtime.sendMessage({
+        action: "startImport",
+        data: {
+          tweetsFileId,
+          mediaFileIds,
+          BLUESKY_USERNAME,
+          ApiDelay,
+          simulate,
+          dateRange
+        }
       });
-
-      // Listen for progress updates
-      const progressListener = (message: any) => {
-        if (message.action === "importProgress") {
-          setProgress(50 + Math.round(message.state.progress * 0.5));
-        } else if (message.action === "importComplete") {
-          setIsProcessing(false);
-          setProgress(100);
-          chrome.runtime.onMessage.removeListener(progressListener);
-        }
-      };
-
-      chrome.runtime.onMessage.addListener(progressListener);
 
     } catch (error) {
       console.error("Error starting import:", error);
@@ -273,7 +188,6 @@ const Home = () => {
       throw error;
     }
   };
-
   const analyzeTweets = async () => {
     setIsAnalyzing(true);
     try {
@@ -282,9 +196,7 @@ const Home = () => {
         throw new Error(`Tweets file not found at ${tweetsLocation}`);
       }
 
-      const tweetsFileContent = await tweetsFile.text();
-      const tweets = parseTweetsFile(tweetsFileContent);
-
+      const tweets = await parseTweetsFile(tweetsFile);
       const filteredTweets = tweets.filter((tweet) => {
         const tweetDate = new Date(tweet.tweet.created_at);
         if (dateRange.min_date && tweetDate < dateRange.min_date) return false;
@@ -304,110 +216,6 @@ const Home = () => {
     }
   };
 
-  const renderStep1 = () => (
-    <div className="space-y-6">
-      <div className="space-y-6">
-        <div>
-          <label
-            htmlFor="file-upload"
-            className="flex flex-col items-center px-4 py-6 bg-white text-blue rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-blue-600 hover:text-white"
-          >
-            <Upload className="w-8 h-8" />
-            <span className="mt-2 text-base leading-normal">
-              Select a folder
-            </span>
-            <input
-              id="file-upload"
-              type="file"
-              onChange={(e) => setFiles(e.target.files)}
-              className="hidden"
-              {...({
-                webkitdirectory: "true",
-              } as React.InputHTMLAttributes<HTMLInputElement>)}
-            />
-          </label>
-        </div>
-
-        {files && files.length > 0 && (
-          <div className="mt-2">
-            <p className="text-sm text-gray-600 mb-2">
-              {files.length} files selected
-            </p>
-            <FileFoundCard
-              cardName="tweets.js"
-              found={CheckFile("tweets.js")}
-            />
-          </div>
-        )}
-
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h3 className="font-medium mb-3">Select Date Range</h3>
-          <DateRangePicker dateRange={dateRange} setDateRange={setDateRange} />
-        </div>
-
-        <Button
-          onClick={analyzeTweets}
-          className="w-full"
-          disabled={!CheckFile("tweets.js") || isAnalyzing}
-        >
-          {isAnalyzing ? "Analyzing..." : "Analyze Tweets"}
-        </Button>
-      </div>
-    </div>
-  );
-
-  const renderStep2 = () => (
-    <div className="space-y-6">
-      <div className="grid gap-4">
-        <Card className="p-4">
-          <h3 className="font-semibold mb-2">Tweet Analysis</h3>
-          <div className="space-y-2">
-            <p className="text-sm text-gray-600">
-              Total tweets found: {totalTweets}
-            </p>
-            <p className="text-sm text-gray-600">
-              Valid tweets to import: {validTweets}
-            </p>
-            <p className="text-sm text-gray-600">
-              Excluded: {totalTweets - validTweets} (retweets, replies, or outside date range)
-            </p>
-          </div>
-        </Card>
-
-        <div className="space-y-4">
-          {isProcessing && (
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div
-                className="bg-blue-600 h-2.5 rounded-full"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-          )}
-          <div className="flex space-x-4">
-            <Button
-              onClick={() => setCurrentStep(1)}
-              variant="outline"
-              className="flex-1"
-              disabled={isProcessing}
-            >
-              Back
-            </Button>
-            <Button
-              onClick={() => {
-                setSimulate(false);
-                tweet_to_bsky();
-              }}
-              className="flex-1"
-              disabled={isProcessing}
-            >
-              {isProcessing ? "Processing..." : "Import to Bluesky"}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
       <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
@@ -418,8 +226,7 @@ const Home = () => {
                 }`}>
                 1
               </div>
-              <div className={`w-16 h-1 ${currentStep === 2 ? 'bg-blue-600' : 'bg-gray-200'
-                }`} />
+              <div className={`w-16 h-1 ${currentStep === 2 ? 'bg-blue-600' : 'bg-gray-200'}`} />
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'
                 }`}>
                 2
@@ -431,7 +238,9 @@ const Home = () => {
           </h1>
         </div>
 
-        {currentStep === 1 ? renderStep1() : renderStep2()}
+        {currentStep === 1
+          ? renderStep1({ files, setFiles, CheckFile, dateRange, analyzeTweets, isAnalyzing, setDateRange })
+          : renderStep2({ totalTweets, validTweets, isProcessing, progress, setCurrentStep, setSimulate, tweet_to_bsky })}
       </div>
     </div>
   );

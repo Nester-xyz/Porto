@@ -1,0 +1,407 @@
+import URI from "urijs";
+import he from "he";
+import { RichText } from "@atproto/api";
+import { ImportPayload, deserializeFile, SerializedFile, serializeFile } from "./utils/serializableUtils";
+import { ValidateUser } from "./lib/auth/validateUser";
+
+let windowId: number | null = null;
+let agentC: any;
+let simulate = false;
+let ApiDelay = 2500;
+
+chrome.action.onClicked.addListener(async () => {
+  if (windowId !== null) {
+    const window = await chrome.windows.get(windowId);
+    if (window) {
+      chrome.windows.update(windowId, { focused: true });
+      return;
+    }
+  }
+
+  const window = await chrome.windows.create({
+    url: "popup.html",
+    type: "popup",
+    width: 500,
+    height: 300,
+    focused: true,
+  });
+
+  // Store the window ID
+  windowId = window.id || null;
+
+  // Listen for window close
+  chrome.windows.onRemoved.addListener((removedWindowId) => {
+    if (removedWindowId === windowId) {
+      windowId = null;
+    }
+  });
+});
+
+// background.ts
+
+interface Tweet {
+  tweet: {
+    created_at: string;
+    id: string;
+    full_text: string;
+    in_reply_to_screen_name: string | null;
+    extended_entities?: {
+      media: {
+        type: string;
+        media_url: string;
+      }[];
+    };
+  };
+}
+
+interface ImportRequest {
+  action: 'startImport';
+  data: ImportPayload;
+}
+
+// Store active imports
+const activeImports = new Map<string, boolean>();
+
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+  if (message.action === 'startImport') {
+    handleImport(message as ImportRequest);
+    return true; // Keep message channel open
+  }
+});
+
+async function handleImport(request: ImportRequest) {
+  const { tweetsFile, mediaFiles, dateRange, BLUESKY_USERNAME, ApiDelay } = request.data;
+  const importId = Date.now().toString();
+
+  try {
+    activeImports.set(importId, true);
+
+    // Parse the tweets file
+    const tweets = await parseTweetsFile(deserializeFile(tweetsFile));
+
+    // Filter tweets based on date range if provided
+    const filteredTweets = filterTweets(tweets, dateRange);
+
+    // Process tweets
+    let processedCount = 0;
+    const totalTweets = filteredTweets.length;
+
+    for (const tweet of filteredTweets) {
+      if (!activeImports.get(importId)) {
+        break; // Import was cancelled
+      }
+
+      try {
+        await processTweet(tweet, mediaFiles, BLUESKY_USERNAME);
+        processedCount++;
+
+        // Send progress update
+        chrome.runtime.sendMessage({
+          action: 'importProgress',
+          state: {
+            progress: (processedCount / totalTweets) * 100,
+            processedTweets: processedCount,
+            totalTweets
+          }
+        });
+
+        // Respect API delay
+        await new Promise(resolve => setTimeout(resolve, ApiDelay));
+      } catch (error) {
+        console.error('Error processing tweet:', error);
+      }
+    }
+
+    // Send completion message
+    chrome.runtime.sendMessage({
+      action: 'importComplete',
+      state: {
+        totalProcessed: processedCount,
+        success: true
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Import error:', error);
+    chrome.runtime.sendMessage({
+      action: 'importError',
+      error: error.message
+    });
+  } finally {
+    activeImports.delete(importId);
+  }
+}
+
+async function findTweetsFile(directoryHandle: FileSystemDirectoryHandle): Promise<File | null> {
+  for await (const entry of directoryHandle.values()) {
+    if (entry.kind === 'file' && entry.name === 'tweets.js') {
+      return entry.getFile();
+    }
+    if (entry.kind === 'directory') {
+      const result = await findTweetsFile(entry);
+      if (result) return result;
+    }
+  }
+  return null;
+}
+
+async function findMediaDirectory(directoryHandle: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle | null> {
+  for await (const entry of directoryHandle.values()) {
+    if (entry.kind === 'directory' && entry.name === 'tweets_media') {
+      return entry;
+    }
+    if (entry.kind === 'directory') {
+      const result = await findMediaDirectory(entry);
+      if (result) return result;
+    }
+  }
+  return null;
+}
+
+async function parseTweetsFile(file: File): Promise<Tweet[]> {
+  const content = await file.text();
+  try {
+    return JSON.parse(content);
+  } catch {
+    try {
+      const jsonContent = content
+        .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, '')
+        .replace(/;$/, '');
+      return JSON.parse(jsonContent);
+    } catch (error) {
+      throw new Error(`Failed to parse tweets file: ${error}`);
+    }
+  }
+}
+
+function filterTweets(tweets: Tweet[], dateRange?: { min_date?: Date; max_date?: Date }): Tweet[] {
+  return tweets.filter(tweet => {
+    const tweetDate = new Date(tweet.tweet.created_at);
+
+    if (dateRange?.min_date && tweetDate < dateRange.min_date) return false;
+    if (dateRange?.max_date && tweetDate > dateRange.max_date) return false;
+
+    return !tweet.tweet.in_reply_to_screen_name &&
+      !tweet.tweet.full_text.startsWith('@') &&
+      !tweet.tweet.full_text.startsWith('RT ');
+  });
+}
+
+async function processTweet(
+  tweet: Tweet,
+  mediaFiles: { [key: string]: SerializedFile },
+  username: string
+) {
+  // Process tweet text
+  let processedText = await cleanTweetText(tweet.tweet.full_text);
+
+  // Process media if present
+  if (tweet.tweet.extended_entities?.media) {
+    for (const media of tweet.tweet.extended_entities.media) {
+      const mediaFileName = getMediaFileName(media.media_url);
+      if (mediaFiles[mediaFileName]) {
+        try {
+          const mediaFile = deserializeFile(mediaFiles[mediaFileName]);
+          await processMediaFile(mediaFile, username);
+        } catch (error) {
+          console.warn(`Failed to process media file ${mediaFileName}:`, error);
+        }
+      }
+    }
+  }
+
+  // Post to Bluesky
+  await postToBluesky(processedText, username);
+}
+
+async function resolveShortURL(url: string) {
+  try {
+    const response = await fetch(url, { method: "HEAD", redirect: "follow" });
+    return response.url;
+  } catch (error) {
+    console.warn(`Error parsing url ${url}:`, error);
+    return url;
+  }
+}
+
+async function cleanTweetText(tweetFullText: string): Promise<string> {
+  let newText = tweetFullText;
+  const urls: string[] = [];
+  URI.withinString(tweetFullText, (url) => {
+    urls.push(url);
+    return url;
+  });
+
+  if (urls.length > 0) {
+    const newUrls: any = await Promise.all(urls.map(resolveShortURL));
+    let j = 0;
+    newText = URI.withinString(tweetFullText, (url) => {
+      if (newUrls[j].indexOf("/photo/") > 0) {
+        j++;
+        return "";
+      }
+      return newUrls[j++];
+    });
+  }
+
+  newText = he.decode(newText);
+  return newText;
+}
+
+async function processMediaFile(file: File, username: string) {
+  // Process media file for Bluesky
+  // Implementation depends on your specific needs
+}
+
+async function postToBluesky(text: string, username: string) {
+  if (!agentC) {
+    console.log("No agent found");
+    return;
+  }
+
+  if (!fileMap.size) {
+    console.log("No files selected");
+    return;
+  }
+
+  try {
+    console.log(`Import started at ${new Date().toISOString()}`);
+    console.log(`Simulate is ${simulate ? "ON" : "OFF"}`);
+
+    const tweetsFile = fileMap.get(tweetsLocation!);
+    if (!tweetsFile) {
+      throw new Error(`Tweets file not found at ${tweetsLocation}`);
+    }
+
+    const tweetsFileContent = await tweetsFile.text();
+    const tweets = parseTweetsFile(tweetsFileContent);
+
+    if (!Array.isArray(tweets)) {
+      throw new Error("Parsed content is not an array");
+    }
+
+    let importedTweet = 0;
+    const sortedTweets = tweets
+      .filter((tweet) => {
+        const tweetDate = new Date(tweet.tweet.created_at);
+        if (dateRange.min_date && tweetDate < dateRange.min_date)
+          return false;
+        if (dateRange.max_date && tweetDate > dateRange.max_date)
+          return false;
+        return true;
+      })
+      .sort((a, b) => {
+        return (
+          new Date(a.tweet.created_at).getTime() -
+          new Date(b.tweet.created_at).getTime()
+        );
+      });
+
+    for (const [index, { tweet }] of sortedTweets.entries()) {
+      try {
+        const tweetDate = new Date(tweet.created_at);
+        const tweet_createdAt = tweetDate.toISOString();
+
+        if (
+          tweet.in_reply_to_screen_name ||
+          tweet.full_text.startsWith("@") ||
+          tweet.full_text.startsWith("RT ")
+        ) {
+          continue;
+        }
+
+        let embeddedImage = [] as any;
+        let hasVideo = false;
+
+        if (tweet.extended_entities?.media) {
+          for (const media of tweet.extended_entities.media) {
+            if (media.type === "photo") {
+              const fileType = media.media_url.split(".").pop();
+              const mimeType =
+                fileType === "png"
+                  ? "image/png"
+                  : fileType === "jpg"
+                    ? "image/jpeg"
+                    : "";
+
+              if (!mimeType) continue;
+              if (embeddedImage.length >= 4) break;
+
+              const mediaFilename = `${mediaLocation}/${tweet.id}-${media.media_url.split("/").pop()}`;
+              const imageFile = fileMap.get(mediaFilename);
+
+              if (imageFile) {
+                const imageBuffer = await imageFile.arrayBuffer();
+                if (!simulate) {
+                  const blobRecord = await agentC.uploadBlob(imageBuffer, {
+                    encoding: mimeType,
+                  });
+
+                  embeddedImage.push({
+                    alt: "",
+                    image: {
+                      $type: "blob",
+                      ref: blobRecord.data.blob.ref,
+                      mimeType: blobRecord.data.blob.mimeType,
+                      size: blobRecord.data.blob.size,
+                    },
+                  });
+                }
+              }
+            } else if (media.type === "video") {
+              hasVideo = true;
+              break;
+            }
+          }
+        }
+
+        if (hasVideo) continue;
+
+        let postText = tweet.full_text;
+        if (!simulate) {
+          postText = await cleanTweetText(tweet.full_text);
+          if (postText.length > 300) {
+            postText = postText.substring(0, 296) + "...";
+          }
+        }
+
+        const rt = new RichText({ text: postText });
+        await rt.detectFacets(agentC);
+
+        const postRecord = {
+          $type: "app.bsky.feed.post",
+          text: rt.text,
+          facets: rt.facets,
+          createdAt: tweet_createdAt,
+          embed:
+            embeddedImage.length > 0
+              ? { $type: "app.bsky.embed.images", images: embeddedImage }
+              : undefined,
+        };
+
+        if (!simulate) {
+          await new Promise((resolve) => setTimeout(resolve, ApiDelay));
+          const recordData = await agentC.post(postRecord);
+          const postRkey = recordData.uri.split("/").pop();
+          if (postRkey) {
+            const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}/post/${postRkey}`;
+            console.log("Bluesky post created:", postUri);
+            importedTweet++;
+          }
+        } else {
+          importedTweet++;
+        }
+      } catch (error) {
+        console.error(`Error processing tweet ${tweet.id}:`, error);
+      }
+    }
+
+    console.log(`Import completed. ${importedTweet} tweets imported.`);
+  } catch (error) {
+    console.error("Error during import:", error);
+  }
+}
+
+function getMediaFileName(url: string): string {
+  return url.split('/').pop() || '';
+}

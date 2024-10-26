@@ -1,18 +1,44 @@
+// background.ts
 import URI from "urijs";
 import he from "he";
 import { RichText } from "@atproto/api";
-import { reconstructFileMap, SerializableFile } from './utils/serializableUtils';
-import { ValidateUser } from "./lib/auth/validateUser";
+import { ImportPayload, deserializeFile } from "./utils/serializableUtils";
+import { DateRange, ChunkMessage, FileTransferMessage } from "./utils/serializableUtils";
 
 let windowId: number | null = null;
 let agentC: any;
+let simulate = false;
+let ApiDelay = 2500;
+const fileStorage = new Map<string, {
+  chunks: Map<number, number[]>;
+  metadata: {
+    fileName: string;
+    fileType: string;
+    totalSize: number;
+    totalChunks: number;
+    receivedChunks: number;
+  };
+}>();
+// Store active imports with their states
+interface ImportState {
+  isActive: boolean;
+  progress: number;
+  processedTweets: number;
+  totalTweets: number;
+}
+
+const activeImports = new Map<string, ImportState>();
 
 chrome.action.onClicked.addListener(async () => {
   if (windowId !== null) {
-    const window = await chrome.windows.get(windowId);
-    if (window) {
-      chrome.windows.update(windowId, { focused: true });
-      return;
+    try {
+      const window = await chrome.windows.get(windowId);
+      if (window) {
+        chrome.windows.update(windowId, { focused: true });
+        return;
+      }
+    } catch (e) {
+      windowId = null;
     }
   }
 
@@ -24,10 +50,8 @@ chrome.action.onClicked.addListener(async () => {
     focused: true,
   });
 
-  // Store the window ID
   windowId = window.id || null;
 
-  // Listen for window close
   chrome.windows.onRemoved.addListener((removedWindowId) => {
     if (removedWindowId === windowId) {
       windowId = null;
@@ -35,51 +59,175 @@ chrome.action.onClicked.addListener(async () => {
   });
 });
 
-// Handle messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "sayHello") {
-    console.log("Hello from the background script!");
-    sendResponse({ response: "Hello from background!" });
+  if (message.type === 'chunk') {
+    handleChunk(message);
+    sendResponse({ status: 'chunk_received' });
+    return true;
   }
+  if (message.action === 'fileTransfer') {
+    handleFileTransfer(message);
+    sendResponse({ status: 'transfer_initiated' });
+    return true;
+  }
+  if (message.action === 'startImport') {
+    handleImportWithFiles(message);
+    sendResponse({ status: 'Import started' });
+    return true;
+  }
+  return false;
 });
-// Initialize agent
-async () => {
-  const { agent }: any = await ValidateUser(true);
-  agentC = agent;
+
+async function handleImportWithFiles(request: {
+  data: {
+    tweetsFileId: string;
+    mediaFileIds: Record<string, string>;
+    BLUESKY_USERNAME: string;
+    ApiDelay: number;
+    simulate: boolean;
+    dateRange: DateRange;
+  }
+}) {
+  const { tweetsFileId, mediaFileIds, BLUESKY_USERNAME, ApiDelay, simulate, dateRange } = request.data;
+  const importId = Date.now().toString();
+
+  try {
+    // Initialize import state
+    activeImports.set(importId, {
+      isActive: true,
+      progress: 0,
+      processedTweets: 0,
+      totalTweets: 0
+    });
+
+    console.log('Starting file reassembly...');
+
+    // Get reassembled tweets file
+    let tweetsFile: File;
+    try {
+      tweetsFile = reassembleFile(tweetsFileId);
+    } catch (error: any) {
+      console.error('Error reassembling tweets file:', error);
+      throw new Error(`Failed to reassemble tweets file: ${error.message}`);
+    }
+
+    // Get reassembled media files
+    const mediaFiles: Record<string, File> = {};
+    for (const [fileName, fileId] of Object.entries(mediaFileIds)) {
+      try {
+        mediaFiles[fileName] = reassembleFile(fileId);
+      } catch (error) {
+        console.error(`Error reassembling media file ${fileName}:`, error);
+        // Continue with other files if one fails
+      }
+    }
+
+    console.log('File reassembly complete, processing tweets...');
+
+    // Continue with existing import logic
+    const tweets = await parseTweetsFile(tweetsFile);
+    const filteredTweets = filterTweets(tweets, dateRange);
+
+    // Update state with total tweets
+    const state = activeImports.get(importId)!;
+    state.totalTweets = filteredTweets.length;
+
+
+    // Process tweets
+    for (const tweet of filteredTweets) {
+      if (!activeImports.get(importId)?.isActive) break;
+
+      try {
+        await processTweet(tweet, mediaFiles, BLUESKY_USERNAME);
+
+        // Update progress
+        state.processedTweets++;
+        state.progress = (state.processedTweets / state.totalTweets) * 100;
+
+        // Broadcast progress
+        chrome.runtime.sendMessage({
+          action: 'importProgress',
+          state: {
+            progress: state.progress,
+            processedTweets: state.processedTweets,
+            totalTweets: state.totalTweets
+          }
+        });
+
+        await new Promise(resolve => setTimeout(resolve, ApiDelay));
+      } catch (error: any) {
+        console.error('Error processing tweet:', error);
+        console.error('Import error:', error);
+        chrome.runtime.sendMessage({
+          action: 'importError',
+          error: error.message
+        });
+      }
+    }
+
+    // Send completion message
+    chrome.runtime.sendMessage({
+      action: 'importComplete',
+      state: {
+        totalProcessed: state.processedTweets,
+        success: true
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Import error:', error);
+    chrome.runtime.sendMessage({
+      action: 'importError',
+      error: error.message
+    });
+  } finally {
+    activeImports.delete(importId);
+  }
 }
 
-// Types
-interface ImportProgressState {
-  isProcessing: boolean;
-  progress: number;
-  totalTweets: number;
-  processedTweets: number;
-  errors: string[];
+async function parseTweetsFile(file: File): Promise<any[]> {
+  const content = await file.text();
+  try {
+    return JSON.parse(content);
+  } catch {
+    const jsonContent = content
+      .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, '')
+      .replace(/;$/, '');
+    return JSON.parse(jsonContent);
+  }
 }
 
-interface ChunkMessage {
-  action: string;
-  chunkIndex: number;
-  totalChunks: number;
-  chunk: Record<string, SerializableFile>;
-  isFinal: boolean;
+function filterTweets(tweets: any[], dateRange?: { min_date?: Date; max_date?: Date }): any[] {
+  return tweets.filter(tweet => {
+    const tweetDate = new Date(tweet.tweet.created_at);
+    if (dateRange?.min_date && tweetDate < dateRange.min_date) return false;
+    if (dateRange?.max_date && tweetDate > dateRange.max_date) return false;
+    return !tweet.tweet.in_reply_to_screen_name &&
+      !tweet.tweet.full_text.startsWith('@') &&
+      !tweet.tweet.full_text.startsWith('RT ');
+  });
 }
 
-// State management
-let importState: ImportProgressState = {
-  isProcessing: false,
-  progress: 0,
-  totalTweets: 0,
-  processedTweets: 0,
-  errors: [],
-};
+async function processTweet(tweet: any, mediaFiles: any, username: string) {
+  let processedText = await cleanTweetText(tweet.tweet.full_text);
 
-// File chunk management
-const fileChunks: Map<number, Record<string, SerializableFile>> = new Map();
-let receivedChunks = 0;
-let expectedTotalChunks = 0;
+  if (tweet.tweet.extended_entities?.media) {
+    for (const media of tweet.tweet.extended_entities.media) {
+      const mediaFileName = media.media_url.split('/').pop();
+      if (mediaFiles[mediaFileName]) {
+        try {
+          const mediaFile = deserializeFile(mediaFiles[mediaFileName]);
+          await processMediaFile(mediaFile, username);
+        } catch (error) {
+          console.warn(`Failed to process media file ${mediaFileName}:`, error);
+        }
+      }
+    }
+  }
 
-// Helper functions
+  await postToBluesky(processedText, username);
+}
+
 async function resolveShortURL(url: string) {
   try {
     const response = await fetch(url, { method: "HEAD", redirect: "follow" });
@@ -110,197 +258,250 @@ async function cleanTweetText(tweetFullText: string): Promise<string> {
     });
   }
 
-  return he.decode(newText);
+  newText = he.decode(newText);
+  return newText;
 }
 
-// Process single tweet
-const processTweet = async (
-  agent: any,
-  tweet: any,
-  fileMap: Map<string, File>,
-  mediaLocation: string,
-  BLUESKY_USERNAME: string,
-  ApiDelay: number
-) => {
+async function processMediaFile(file: File, username: string) {
   try {
-    let embeddedImage = [] as any;
-    let hasVideo = false;
+    if (!agentC) {
+      throw new Error("No agent available for media upload");
+    }
 
-    if (tweet.extended_entities?.media) {
-      for (const media of tweet.extended_entities.media) {
-        if (media.type === "photo") {
-          const fileType = media.media_url.split(".").pop();
-          const mimeType = fileType === "png" ? "image/png" :
-            fileType === "jpg" ? "image/jpeg" : "";
+    const buffer = await file.arrayBuffer();
+    const blob = new Blob([buffer], { type: file.type });
 
-          if (!mimeType) continue;
-          if (embeddedImage.length >= 4) break;
+    // Upload to Bluesky
+    const response = await agentC.uploadBlob(blob, {
+      encoding: file.type
+    });
 
-          const mediaFilename = `${mediaLocation}/${tweet.id}-${media.media_url.split("/").pop()}`;
-          const imageFile = fileMap.get(mediaFilename);
+    return response.data.blob; // Return the uploaded blob reference
+  } catch (error) {
+    console.error("Error processing media file:", error);
+    throw error;
+  }
+}
 
-          if (imageFile) {
-            const imageBuffer = await imageFile.arrayBuffer();
-            const blobRecord = await agent.uploadBlob(imageBuffer, {
-              encoding: mimeType,
-            });
+async function postToBluesky(text: string, username: string) {
+  if (!agentC) {
+    throw new Error("No agent found");
+  }
 
-            embeddedImage.push({
-              alt: "",
-              image: {
-                $type: "blob",
-                ref: blobRecord.data.blob.ref,
-                mimeType: blobRecord.data.blob.mimeType,
-                size: blobRecord.data.blob.size,
-              },
-            });
-          }
-        } else if (media.type === "video") {
-          hasVideo = true;
-          break;
-        }
+  try {
+    let postText = text;
+    if (!simulate) {
+      postText = await cleanTweetText(text);
+      if (postText.length > 300) {
+        postText = postText.substring(0, 296) + "...";
       }
     }
 
-    if (hasVideo) return null;
-
-    let postText = await cleanTweetText(tweet.full_text);
-    if (postText.length > 300) {
-      postText = postText.substring(0, 296) + "...";
-    }
-
     const rt = new RichText({ text: postText });
-    await rt.detectFacets(agent);
+    await rt.detectFacets(agentC);
 
     const postRecord = {
       $type: "app.bsky.feed.post",
       text: rt.text,
       facets: rt.facets,
-      createdAt: new Date(tweet.created_at).toISOString(),
-      embed: embeddedImage.length > 0
-        ? { $type: "app.bsky.embed.images", images: embeddedImage }
-        : undefined,
+      createdAt: new Date().toISOString(),
     };
 
-    await new Promise((resolve) => setTimeout(resolve, ApiDelay));
-    return await agent.post(postRecord);
+    if (!simulate) {
+      await new Promise((resolve) => setTimeout(resolve, ApiDelay));
+      const recordData = await agentC.post(postRecord);
+
+      const postRkey = recordData.uri.split("/").pop();
+      if (postRkey) {
+        const postUri = `https://bsky.app/profile/${username}/post/${postRkey}`;
+        console.log("Bluesky post created:", postUri);
+        return postUri;
+      }
+    }
   } catch (error) {
-    console.error("Error processing tweet:", error);
-    return null;
+    console.error("Error posting to Bluesky:", error);
+    throw error;
   }
-};
+}
 
-// Message handling
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Handle file chunks
-  if (message.action === "fileChunk") {
-    console.log("Collecting chunks", message)
-    const chunkMessage = message as ChunkMessage;
-    fileChunks.set(chunkMessage.chunkIndex, chunkMessage.chunk);
-    receivedChunks++;
+// Add helper functions for managing background tasks
+const backgroundTasks = new Map<string, NodeJS.Timeout>();
 
-    if (chunkMessage.chunkIndex === 0) {
-      expectedTotalChunks = chunkMessage.totalChunks;
-    }
+function registerBackgroundTask(taskId: string, timeoutMs: number = 4 * 60 * 60 * 1000) { // 4 hours default
+  const existingTimeout = backgroundTasks.get(taskId);
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
+  }
 
-    if (receivedChunks === expectedTotalChunks) {
-      const completeFileMap = new Map<string, SerializableFile>();
+  const timeout = setTimeout(() => {
+    cancelImport(taskId);
+    backgroundTasks.delete(taskId);
+  }, timeoutMs);
 
-      for (let i = 0; i < expectedTotalChunks; i++) {
-        const chunk = fileChunks.get(i);
-        if (chunk) {
-          Object.entries(chunk).forEach(([key, value]) => {
-            completeFileMap.set(key, value);
-          });
-        }
+  backgroundTasks.set(taskId, timeout);
+}
+
+function cancelImport(importId: string) {
+  const importState = activeImports.get(importId);
+  if (importState) {
+    importState.isActive = false;
+    activeImports.delete(importId);
+  }
+
+  const timeout = backgroundTasks.get(importId);
+  if (timeout) {
+    clearTimeout(timeout);
+    backgroundTasks.delete(importId);
+  }
+}
+
+// Add error recovery and retry logic
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`Attempt ${attempt} failed:`, error);
+
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
       }
-
-      fileChunks.clear();
-      receivedChunks = 0;
-      expectedTotalChunks = 0;
-
-      chrome.storage.local.set({
-        completeFileMap: Array.from(completeFileMap.entries())
-      });
-
-      sendResponse({ success: true, message: "All chunks received" });
-    } else {
-      sendResponse({ success: true, message: `Chunk ${chunkMessage.chunkIndex + 1}/${chunkMessage.totalChunks} received` });
     }
-    return true;
   }
 
-  // Handle import start
-  if (message.action === "startImport") {
-    const { tweets, mediaLocation, BLUESKY_USERNAME, ApiDelay } = message.data;
+  throw lastError || new Error("Operation failed after retries");
+}
 
-    console.log("startImporting twweets");
-    chrome.storage.local.get(['completeFileMap'], async (result) => {
-      const reconstructedFileMap = result.completeFileMap ?
-        reconstructFileMap(new Map(result.completeFileMap)) : new Map();
-
-      importState = {
-        isProcessing: true,
-        progress: 0,
-        totalTweets: tweets.length,
-        processedTweets: 0,
-        errors: [],
-      };
-
-      for (const tweet of tweets) {
-        if (!importState.isProcessing) break;
-
-        try {
-          const response = await processTweet(
-            agentC,
-            tweet,
-            reconstructedFileMap,
-            mediaLocation,
-            BLUESKY_USERNAME,
-            ApiDelay
-          );
-
-          console.log(response);
-          importState.processedTweets++;
-          importState.progress = Math.round(
-            (importState.processedTweets / importState.totalTweets) * 100
-          );
-
-          chrome.runtime.sendMessage({
-            action: "importProgress",
-            state: importState
-          });
-
-          await new Promise(resolve => setTimeout(resolve, ApiDelay));
-        } catch (error: any) {
-          importState.errors.push(`Error processing tweet ${tweet.id}: ${error.message}`);
-        }
-      }
-
-      importState.isProcessing = false;
-      chrome.storage.local.remove(['completeFileMap']);
-
-      chrome.runtime.sendMessage({
-        action: "importComplete",
-        state: importState
-      });
-    });
-
-    sendResponse({ success: true });
-    return true;
-  }
-
-  if (message.action === "getImportState") {
-    sendResponse(importState);
-    return true;
-  }
-
-  if (message.action === "cancelImport") {
-    importState.isProcessing = false;
-    chrome.storage.local.set({ importState });
-    sendResponse({ success: true });
-    return true;
+// Add persistence for import state
+chrome.storage.local.get(['activeImports'], (result) => {
+  if (result.activeImports) {
+    for (const [importId, state] of Object.entries(result.activeImports)) {
+      activeImports.set(importId, state as ImportState);
+      registerBackgroundTask(importId);
+    }
   }
 });
 
+// Save import state periodically
+setInterval(() => {
+  if (activeImports.size > 0) {
+    chrome.storage.local.set({
+      activeImports: Object.fromEntries(activeImports)
+    });
+  }
+}, 30000); // Save every 30 seconds
 
+// Handle extension upgrade/reload
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.get(['activeImports'], (result) => {
+    if (result.activeImports) {
+      for (const [importId, state] of Object.entries(result.activeImports)) {
+        activeImports.set(importId, state as ImportState);
+        registerBackgroundTask(importId);
+      }
+    }
+  });
+});
+
+// Clean up on extension unload
+chrome.runtime.onSuspend.addListener(() => {
+  if (activeImports.size > 0) {
+    chrome.storage.local.set({
+      activeImports: Object.fromEntries(activeImports)
+    });
+  }
+});
+const fileChunks: Record<string, {
+  chunks: (number[])[];
+  metadata: {
+    fileName: string;
+    fileType: string;
+    totalSize: number;
+  };
+}> = {};
+
+function handleFileTransfer(message: FileTransferMessage) {
+  const { fileId, fileName, fileType, totalSize } = message;
+
+  // Initialize file storage with a Map for chunks
+  fileStorage.set(fileId, {
+    chunks: new Map(),
+    metadata: {
+      fileName,
+      fileType,
+      totalSize,
+      totalChunks: 0,
+      receivedChunks: 0
+    }
+  });
+
+  console.log(`Initialized file transfer for ${fileId}`);
+}
+
+
+function handleChunk(message: ChunkMessage) {
+  const { id: fileId, chunkIndex, data, totalChunks } = message;
+
+  const fileData = fileStorage.get(fileId);
+  if (!fileData) {
+    console.error(`No file transfer initiated for ID: ${fileId}`);
+    return;
+  }
+
+  // Update metadata if this is the first chunk
+  if (fileData.metadata.totalChunks === 0) {
+    fileData.metadata.totalChunks = totalChunks;
+  }
+
+  // Store the chunk
+  fileData.chunks.set(chunkIndex, data);
+  fileData.metadata.receivedChunks++;
+
+  console.log(`Received chunk ${chunkIndex + 1}/${totalChunks} for file ${fileId}`);
+
+  // Check if all chunks received
+  if (fileData.metadata.receivedChunks === totalChunks) {
+    console.log(`All chunks received for ${fileId}, reassembling...`);
+    return reassembleFile(fileId);
+  }
+}
+
+function reassembleFile(fileId: string): File {
+  const fileData = fileStorage.get(fileId);
+  if (!fileData) {
+    throw new Error(`No file data found for ID: ${fileId}`);
+  }
+
+  const { chunks, metadata } = fileData;
+
+  // Create array of chunks in correct order
+  const orderedChunks: number[][] = [];
+  for (let i = 0; i < metadata.totalChunks; i++) {
+    const chunk = chunks.get(i);
+    if (!chunk) {
+      throw new Error(`Missing chunk ${i} for file ${fileId}`);
+    }
+    orderedChunks.push(chunk);
+  }
+
+  // Combine all chunks
+  const allData = new Uint8Array(orderedChunks.flat());
+
+  // Create file
+  const file = new File([allData], metadata.fileName, {
+    type: metadata.fileType
+  });
+
+  // Clean up storage
+  fileStorage.delete(fileId);
+  console.log(`Successfully reassembled file ${metadata.fileName}`);
+
+  return file;
+}

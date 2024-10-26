@@ -6,7 +6,7 @@ export interface FileChunk {
 	data: number[];
 }
 
-export const CHUNK_SIZE = 5 * 1024 * 1024; // 10MB chunks
+export const CHUNK_SIZE = 8 * 1024 * 1024; // 10MB chunks
 
 export async function sendLargeMessage(message: any): Promise<string> {
 	const messageId = Math.random().toString(36).substring(7);
