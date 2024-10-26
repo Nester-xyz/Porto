@@ -88,6 +88,7 @@ const Home = () => {
       let importedTweet = 0;
 
       const sortedTweets = sortTweetsWithDateRange(tweets, dateRange);
+      console.log(sortedTweets);
 
       for (const [index, { tweet }] of sortedTweets.entries()) {
         try {
@@ -214,7 +215,11 @@ const Home = () => {
       const tweets = parseTweetsFile(tweetsFileContent);
 
       setTotalTweets(tweets.length);
-      setValidTweets(sortTweetsWithDateRange.length);
+      console.log("---------");
+      const valid = sortTweetsWithDateRange(tweets, dateRange);
+      console.log(valid);
+      console.log("---------");
+      setValidTweets(valid.length);
       setCurrentStep(2);
     } catch (error) {
       console.error("Error analyzing tweets:", error);
