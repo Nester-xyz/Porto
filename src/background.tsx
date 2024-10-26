@@ -1,14 +1,22 @@
 // background.ts
 import URI from "urijs";
+import { AtpAgent } from "@atproto/api";
 import he from "he";
 import { RichText } from "@atproto/api";
 import { ImportPayload, deserializeFile } from "./utils/serializableUtils";
 import { DateRange, ChunkMessage, FileTransferMessage } from "./utils/serializableUtils";
+import { ValidateUser } from "./lib/auth/validateUser";
 
 let windowId: number | null = null;
-let agentC: any;
+let agentC: any = null;
 let simulate = false;
 let ApiDelay = 2500;
+(async () => {
+  const { agent }: any = await ValidateUser(true);
+  agentC = agent;
+  console.log(agent);
+})();
+
 const fileStorage = new Map<string, {
   chunks: Map<number, number[]>;
   metadata: {
@@ -17,6 +25,7 @@ const fileStorage = new Map<string, {
     totalSize: number;
     totalChunks: number;
     receivedChunks: number;
+    isComplete: boolean;
   };
 }>();
 // Store active imports with their states
@@ -60,20 +69,26 @@ chrome.action.onClicked.addListener(async () => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'chunk') {
-    handleChunk(message);
-    sendResponse({ status: 'chunk_received' });
-    return true;
-  }
-  if (message.action === 'fileTransfer') {
-    handleFileTransfer(message);
-    sendResponse({ status: 'transfer_initiated' });
-    return true;
-  }
-  if (message.action === 'startImport') {
-    handleImportWithFiles(message);
-    sendResponse({ status: 'Import started' });
-    return true;
+  console.log('Received message:', message.action || message.type);
+  try {
+    if (message.type === 'chunk') {
+      handleChunk(message);
+      sendResponse({ status: 'chunk_received' });
+      return true;
+    }
+    if (message.action === 'fileTransfer') {
+      handleFileTransfer(message);
+      sendResponse({ status: 'transfer_initiated' });
+      return true;
+    }
+    if (message.action === 'startImport') {
+      handleImportWithFiles(message);
+      sendResponse({ status: 'Import started' });
+      return true;
+    }
+  } catch (error: any) {
+    console.error('Error handling message:', error);
+    sendResponse({ status: 'error', error: error.message });
   }
   return false;
 });
@@ -288,7 +303,10 @@ async function postToBluesky(text: string, username: string) {
     throw new Error("No agent found");
   }
 
+  console.log("agent did", agentC.did)
+  console.log("agent ", agentC)
   try {
+    console.log("agent account id ", agentC.accountDid);
     let postText = text;
     if (!simulate) {
       postText = await cleanTweetText(text);
@@ -428,31 +446,36 @@ const fileChunks: Record<string, {
 }> = {};
 
 function handleFileTransfer(message: FileTransferMessage) {
-  const { fileId, fileName, fileType, totalSize } = message;
+  console.log('Initializing file transfer:', message.fileId);
 
-  // Initialize file storage with a Map for chunks
-  fileStorage.set(fileId, {
+  fileStorage.set(message.fileId, {
     chunks: new Map(),
     metadata: {
-      fileName,
-      fileType,
-      totalSize,
+      fileName: message.fileName,
+      fileType: message.fileType,
+      totalSize: message.totalSize,
       totalChunks: 0,
-      receivedChunks: 0
+      receivedChunks: 0,
+      isComplete: false
     }
   });
 
-  console.log(`Initialized file transfer for ${fileId}`);
+  // Log current storage state
+  console.log('File storage after initialization:',
+    Array.from(fileStorage.keys()));
 }
-
 
 function handleChunk(message: ChunkMessage) {
   const { id: fileId, chunkIndex, data, totalChunks } = message;
 
+  // Debug logging
+  console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks} for file ${fileId}`);
+
   const fileData = fileStorage.get(fileId);
   if (!fileData) {
-    console.error(`No file transfer initiated for ID: ${fileId}`);
-    return;
+    console.error(`No file transfer found for ID: ${fileId}`);
+    console.log('Available files:', Array.from(fileStorage.keys()));
+    throw new Error(`File transfer not initialized for ID: ${fileId}`);
   }
 
   // Update metadata if this is the first chunk
@@ -464,24 +487,32 @@ function handleChunk(message: ChunkMessage) {
   fileData.chunks.set(chunkIndex, data);
   fileData.metadata.receivedChunks++;
 
-  console.log(`Received chunk ${chunkIndex + 1}/${totalChunks} for file ${fileId}`);
+  console.log(`Progress for ${fileId}: ${fileData.metadata.receivedChunks}/${totalChunks}`);
 
   // Check if all chunks received
   if (fileData.metadata.receivedChunks === totalChunks) {
-    console.log(`All chunks received for ${fileId}, reassembling...`);
-    return reassembleFile(fileId);
+    console.log(`All chunks received for ${fileId}`);
+    fileData.metadata.isComplete = true;
   }
 }
 
 function reassembleFile(fileId: string): File {
+  console.log(`Attempting to reassemble file: ${fileId}`);
+  console.log('Available files:', Array.from(fileStorage.keys()));
+
   const fileData = fileStorage.get(fileId);
   if (!fileData) {
     throw new Error(`No file data found for ID: ${fileId}`);
   }
 
+  if (!fileData.metadata.isComplete) {
+    throw new Error(`File ${fileId} is not completely transferred. ` +
+      `Received ${fileData.metadata.receivedChunks}/${fileData.metadata.totalChunks} chunks`);
+  }
+
   const { chunks, metadata } = fileData;
 
-  // Create array of chunks in correct order
+  // Verify all chunks are present
   const orderedChunks: number[][] = [];
   for (let i = 0; i < metadata.totalChunks; i++) {
     const chunk = chunks.get(i);
@@ -491,7 +522,7 @@ function reassembleFile(fileId: string): File {
     orderedChunks.push(chunk);
   }
 
-  // Combine all chunks
+  // Combine chunks
   const allData = new Uint8Array(orderedChunks.flat());
 
   // Create file
@@ -499,9 +530,24 @@ function reassembleFile(fileId: string): File {
     type: metadata.fileType
   });
 
-  // Clean up storage
-  fileStorage.delete(fileId);
   console.log(`Successfully reassembled file ${metadata.fileName}`);
+
+  // Clean up
+  fileStorage.delete(fileId);
 
   return file;
 }
+
+
+// for agent
+chrome.storage.local.onChanged.addListener((changes) => {
+  if (changes.agentData) {
+    agentC = changes.agentData.newValue;
+    console.log("changes listened", agentC);
+  }
+});
+chrome.storage.local.get('agentData', (result) => {
+  if (result.agentData) {
+    agentC = result.agentData;
+  }
+});

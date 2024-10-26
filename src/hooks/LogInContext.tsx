@@ -33,6 +33,9 @@ export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
     validate();
+    if (agent) {
+      chrome.storage.local.set({ agentData: agent });
+    }
     console.log(agentInstance);
   }, [agent]);
 

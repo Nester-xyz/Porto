@@ -23,9 +23,9 @@ interface Tweet {
 }
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {DateRange } from "@/types/tweets.type";
+import { DateRange } from "@/types/tweets.type";
 import {
-  
+
   sortTweetsWithDateRange,
 } from "@/components/utils";
 import { CheckCircle, Upload } from "lucide-react";
@@ -120,6 +120,8 @@ const Home = () => {
     const fileId = `file_${Date.now()}`;
     const totalChunks = Math.ceil(file.size / chunkSize);
 
+    console.log(`Starting transfer of ${file.name}, ID: ${fileId}`);
+
     // Send initial file metadata
     await chrome.runtime.sendMessage({
       action: 'fileTransfer',
@@ -145,16 +147,18 @@ const Home = () => {
         totalChunks,
         data: Array.from(chunk)
       });
+
+      console.log(`Sent chunk ${i + 1}/${totalChunks} for ${file.name}`);
     }
 
     return fileId;
   };
-
   const tweet_to_bsky = async () => {
     if (!agent) {
       console.log("No agent found");
       return;
     }
+
     setIsProcessing(true);
     setProgress(0);
 
@@ -164,20 +168,29 @@ const Home = () => {
         throw new Error(`Tweets file not found at ${tweetsLocation}`);
       }
 
-      // Send tweets file in chunks first
-      const tweetsFileId = await sendFileInChunks(tweetsFile);
+      console.log('Starting file transfer process...');
 
-      // Prepare and send media files
+      // Send tweets file in chunks
+      const tweetsFileId = await sendFileInChunks(tweetsFile);
+      console.log('Tweets file transfer complete, ID:', tweetsFileId);
+
+      // Small delay to ensure all chunks are processed
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Prepare media files
       const mediaFileIds: Record<string, string> = {};
       for (const [path, file] of fileMap.entries()) {
         if (path.includes('tweets_media') && file.size > 0) {
           const fileId = await sendFileInChunks(file);
           mediaFileIds[file.name] = fileId;
+          // Small delay between files
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
-      setCurrentStep(3);
 
-      // Start the import process with file IDs
+      console.log('All files transferred, starting import...');
+
+      // Start the import process
       await chrome.runtime.sendMessage({
         action: "startImport",
         data: {
@@ -190,12 +203,14 @@ const Home = () => {
         }
       });
 
+
     } catch (error) {
-      console.error("Error starting import:", error);
+      console.error("Error in tweet_to_bsky:", error);
       setIsProcessing(false);
       throw error;
     }
   };
+
   const analyzeTweets = async () => {
     setIsAnalyzing(true);
     try {
@@ -224,7 +239,7 @@ const Home = () => {
     }
   };
 
-  
+
   const renderStep3 = () => (
     <div className="space-y-6">
       <div className="grid gap-4">
@@ -308,33 +323,28 @@ const Home = () => {
           <div className="flex items-center justify-center mb-4">
             <div className="flex items-center">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  currentStep >= 1 ? "bg-blue-600 text-white" : "bg-gray-200"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 1 ? "bg-blue-600 text-white" : "bg-gray-200"
+                  }`}
               >
                 1
               </div>
               <div
-                className={`w-16 h-1 ${
-                  currentStep >= 2 ? "bg-blue-600" : "bg-gray-200"
-                }`}
+                className={`w-16 h-1 ${currentStep >= 2 ? "bg-blue-600" : "bg-gray-200"
+                  }`}
               />
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  currentStep >= 2 ? "bg-blue-600 text-white" : "bg-gray-200"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep >= 2 ? "bg-blue-600 text-white" : "bg-gray-200"
+                  }`}
               >
                 2
               </div>
               <div
-                className={`w-16 h-1 ${
-                  currentStep === 3 ? "bg-blue-600" : "bg-gray-200"
-                }`}
+                className={`w-16 h-1 ${currentStep === 3 ? "bg-blue-600" : "bg-gray-200"
+                  }`}
               />
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                  currentStep === 3 ? "bg-green-600 text-white" : "bg-gray-200"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${currentStep === 3 ? "bg-green-600 text-white" : "bg-gray-200"
+                  }`}
               >
                 <SiTicktick />
               </div>
