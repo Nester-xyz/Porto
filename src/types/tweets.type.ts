@@ -20,11 +20,6 @@ export interface Tweet {
   };
 }
 
-export interface DateRange {
-  min_date: Date | undefined;
-  max_date: Date | undefined;
-}
-
 export type TcheckFile = (
   fileMap: Map<String, File>,
   fileName: string,

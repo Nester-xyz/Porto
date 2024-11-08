@@ -1,11 +1,8 @@
 import { useLogInContext } from "@/hooks/LogInContext";
-import { useState, useEffect } from "react";
-import FileFoundCard from "@/components/FileFoundCard";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { RichText } from "@atproto/api";
-import DateRangePicker from "@/components/DateRangePicker";
 import { Card } from "@/components/ui/card";
-import { Tweet, DateRange } from "@/types/tweets.type";
 import {
   cleanTweetText,
   findFileFromMap,
@@ -13,55 +10,32 @@ import {
   parseTweetsFile,
   sortTweetsWithDateRange,
 } from "@/components/utils";
-import { CheckCircle, Upload } from "lucide-react";
+import { CheckCircle } from "lucide-react";
 import { SiTicktick } from "react-icons/si";
+import { ApiDelay, BLUESKY_USERNAME } from "@/lib/constant";
+import { TDateRange } from "@/types/render";
+import Render1 from "./render1";
 
 const Home = () => {
   const { agent } = useLogInContext();
-  const [currentStep, setCurrentStep] = useState(1);
   const [simulate, setSimulate] = useState(false);
-  const [dateRange, setDateRange] = useState<DateRange>({
+  const [currentStep, setCurrentStep] = useState(1);
+  const [dateRange, setDateRange] = useState<TDateRange>({
     min_date: undefined,
     max_date: undefined,
   });
-  const [totalTweets, setTotalTweets] = useState(0);
-  const [validTweets, setValidTweets] = useState(0);
-  const ApiDelay = 2500;
-  const BLUESKY_USERNAME = localStorage.getItem("handle")?.split(".")[0];
-  const [files, setFiles] = useState<FileList | null>(null);
+
   const [tweetsLocation, setTweetsLocation] = useState<string | null>(null);
   const [fileMap, setFileMap] = useState<Map<string, File>>(new Map());
   const [isProcessing, setIsProcessing] = useState(false);
   const [mediaLocation, setMediaLocation] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const findFile = (fineName: string) => findFileFromMap(fileMap, fineName);
   const CheckFile = (filename: string) => !!findFile(filename);
 
-  useEffect(() => {
-    if (files) {
-      const map = new Map();
-      for (const file of files) {
-        map.set(file.webkitRelativePath, file);
-      }
-      setFileMap(map);
-    }
-  }, [files]);
-
-  useEffect(() => {
-    const file = findFile("tweets.js");
-    setTweetsLocation(file ? file.webkitRelativePath : null);
-    const parentFolder = file?.webkitRelativePath
-      ?.split("/")
-      .slice(0, -1)
-      .join("/");
-    setMediaLocation(`${parentFolder}/tweets_media`);
-  }, [fileMap]);
-
   const tweet_to_bsky = async () => {
     if (!agent) throw new Error("Agent not found");
-
     if (!fileMap.size) {
       console.log("No files selected");
       return;
@@ -202,83 +176,6 @@ const Home = () => {
       setProgress(100);
     }
   };
-
-  const analyzeTweets = async () => {
-    setIsAnalyzing(true);
-    try {
-      const tweetsFile = fileMap.get(tweetsLocation!);
-      if (!tweetsFile) {
-        throw new Error(`Tweets file not found at ${tweetsLocation}`);
-      }
-
-      const tweetsFileContent = await tweetsFile.text();
-      const tweets = parseTweetsFile(tweetsFileContent);
-
-      setTotalTweets(tweets.length);
-      console.log("---------");
-      const valid = sortTweetsWithDateRange(tweets, dateRange);
-      console.log(valid);
-      console.log("---------");
-      setValidTweets(valid.length);
-      setCurrentStep(2);
-    } catch (error) {
-      console.error("Error analyzing tweets:", error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const renderStep1 = () => (
-    <div className="space-y-6">
-      <div className="space-y-6">
-        <div>
-          <label
-            htmlFor="file-upload"
-            className="flex flex-col items-center px-4 py-6 bg-white text-blue rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-blue-600 hover:text-white"
-          >
-            <Upload className="w-8 h-8" />
-            <span className="mt-2 text-base leading-normal">
-              Select a folder
-            </span>
-            <input
-              id="file-upload"
-              type="file"
-              onChange={(e) => setFiles(e.target.files)}
-              className="hidden"
-              {...({
-                webkitdirectory: "true",
-              } as React.InputHTMLAttributes<HTMLInputElement>)}
-            />
-          </label>
-        </div>
-
-        {files && files.length > 0 && (
-          <div className="mt-2">
-            <p className="text-sm text-gray-600 mb-2">
-              {files.length} files selected
-            </p>
-            <FileFoundCard
-              cardName="tweets.js"
-              found={CheckFile("tweets.js")}
-            />
-          </div>
-        )}
-
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h3 className="font-medium mb-3">Select Date Range</h3>
-          <DateRangePicker dateRange={dateRange} setDateRange={setDateRange} />
-        </div>
-
-        <Button
-          onClick={analyzeTweets}
-          className="w-full"
-          disabled={!CheckFile("tweets.js") || isAnalyzing}
-        >
-          {isAnalyzing ? "Analyzing..." : "Analyze Tweets"}
-        </Button>
-      </div>
-    </div>
-  );
 
   const renderStep2 = () => (
     <div className="space-y-6">
@@ -453,11 +350,13 @@ const Home = () => {
           </h1>
         </div>
 
-        {currentStep === 1
-          ? renderStep1()
-          : currentStep === 2
-            ? renderStep2()
-            : renderStep3()}
+        {currentStep === 1 ? (
+          <Render1 />
+        ) : currentStep === 2 ? (
+          renderStep2()
+        ) : (
+          renderStep3()
+        )}
       </div>
     </div>
   );
