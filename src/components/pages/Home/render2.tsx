@@ -12,18 +12,20 @@ import { shareableData } from "@/types/render";
 import { RichText } from "@atproto/api";
 import { useState } from "react";
 
-const renderStep2 = ({
-  fileMap,
-  dateRange,
-  mediaLocation,
-  totalTweets,
-  tweetsLocation,
-  validTweets,
-}: shareableData) => {
+const RenderStep2 = ({ shareableData }: { shareableData: shareableData }) => {
   const { agent } = useLogInContext();
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [simulate, setSimulate] = useState(false);
+
+  const {
+    fileMap,
+    dateRange,
+    mediaLocation,
+    totalTweets,
+    tweetsLocation,
+    validTweets,
+  } = shareableData;
 
   const tweet_to_bsky = async () => {
     if (!agent) throw new Error("Agent not found");
@@ -221,4 +223,4 @@ const renderStep2 = ({
   );
 };
 
-export default renderStep2;
+export default RenderStep2;

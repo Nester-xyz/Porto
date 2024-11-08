@@ -11,10 +11,9 @@ const App = () => {
     mediaLocation: string;
   }) => {};
 
-  return <Render1 onAnalysisComplete={onAnalysisComplete} />;
+  // return <Render1 onAnalysisComplete={onAnalysisComplete} />;
 
   return (
-    // <Home />
     <LogInProvider>
       <Login />
     </LogInProvider>

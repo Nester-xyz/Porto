@@ -29,7 +29,9 @@ import {
   intialDate,
 } from "@/lib/constant";
 
-const Render1: React.FC<TweetAnalyzerStep1Props> = ({ onAnalysisComplete }) => {
+const RenderStep1: React.FC<TweetAnalyzerStep1Props> = ({
+  onAnalysisComplete,
+}) => {
   const [fileState, setFileState] = useState<TFileState>(initialFileState);
   const [analysisState, setAnalysisState] =
     useState<TTweetAnalyzer>(initalTweetAnalyzer);
@@ -158,4 +160,4 @@ const Render1: React.FC<TweetAnalyzerStep1Props> = ({ onAnalysisComplete }) => {
   );
 };
 
-export default Render1;
+export default RenderStep1;

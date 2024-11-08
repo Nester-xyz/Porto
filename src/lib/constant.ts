@@ -18,3 +18,12 @@ export const intialDate = {
   min_date: undefined,
   max_date: undefined,
 };
+
+export const initialShareableData = {
+  fileMap: new Map<string, File>(),
+  totalTweets: 0,
+  validTweets: 0,
+  tweetsLocation: "",
+  mediaLocation: "",
+  dateRange: intialDate,
+};
