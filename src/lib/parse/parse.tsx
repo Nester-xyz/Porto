@@ -1,4 +1,5 @@
-import { DateRange, Tweet } from "@/types/tweets.type";
+import { TDateRange } from "@/types/render";
+import { Tweet } from "@/types/tweets.type";
 import he from "he";
 import URI from "urijs";
 
@@ -44,14 +45,27 @@ export const isQuote = (tweets: Tweet[], id: string) => {
   return isQuoted ? true : false;
 };
 
+export const isPostValid = (tweet: Tweet["tweet"]) => {
+  if (
+    tweet.in_reply_to_screen_name ||
+    tweet.full_text.startsWith("@") ||
+    tweet.full_text.startsWith("RT ")
+  ) {
+    console.log("skipped", tweet.full_text);
+    return false;
+  }
+  return true;
+};
+
 export const sortTweetsWithDateRange = (
   tweets: Tweet[],
-  dateRange: DateRange,
+  dateRange: TDateRange,
 ) =>
   tweets
     .filter((tweet) => {
       const tweetDate = new Date(tweet.tweet.created_at);
       if (isQuote(tweets, tweet.tweet.id)) return false;
+      if (!isPostValid(tweet.tweet)) return false;
       if (dateRange.min_date && tweetDate < dateRange.min_date) return false;
       if (dateRange.max_date && tweetDate > dateRange.max_date) return false;
       return true;

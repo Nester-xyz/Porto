@@ -4,6 +4,7 @@ import { useLogInContext } from "@/hooks/LogInContext";
 import { ApiDelay, BLUESKY_USERNAME } from "@/lib/constant";
 import {
   cleanTweetText,
+  isPostValid,
   isQuote,
   parseTweetsFile,
   sortTweetsWithDateRange,
@@ -66,13 +67,7 @@ const RenderStep2: React.FC<Render2Props> = ({
           const tweetDate = new Date(tweet.created_at);
           const tweet_createdAt = tweetDate.toISOString();
 
-          if (
-            tweet.in_reply_to_screen_name ||
-            tweet.full_text.startsWith("@") ||
-            tweet.full_text.startsWith("RT ") ||
-            isQuote(tweets, tweet.id)
-          ) {
-            console.log("skipped", tweet.full_text);
+          if (!isPostValid(tweet) || isQuote(tweets, tweet.id)) {
             continue;
           }
 
