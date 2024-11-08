@@ -17,7 +17,7 @@ import {
 // types
 import {
   TFileState,
-  TweetAnalyzerStep1Props,
+  Render1Props,
   TDateRange,
   TTweetAnalyzer,
 } from "@/types/render";
@@ -29,7 +29,7 @@ import {
   intialDate,
 } from "@/lib/constant";
 
-const RenderStep1: React.FC<TweetAnalyzerStep1Props> = ({
+const RenderStep1: React.FC<Render1Props> = ({
   onAnalysisComplete,
   setCurrentStep,
 }) => {
@@ -82,6 +82,7 @@ const RenderStep1: React.FC<TweetAnalyzerStep1Props> = ({
         validTweets: validTweets.length,
       }));
 
+      setCurrentStep(2);
       onAnalysisComplete(analysisResults);
     } catch (error) {
       console.error("Error analyzing tweets:", error);

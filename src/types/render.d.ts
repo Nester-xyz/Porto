@@ -7,8 +7,19 @@ export interface shareableData {
   dateRange: TDateRange;
 }
 
-export interface TweetAnalyzerStep1Props {
+export interface Render1Props {
   onAnalysisComplete: (data: shareableData) => void;
+  setCurrentStep: (step: number) => void;
+}
+
+export interface Render2Props {
+  shareableData: shareableData;
+  setCurrentStep: (step: number) => void;
+}
+
+export interface Render3Props {
+  totalTweets: number;
+  validTweets: number;
   setCurrentStep: (step: number) => void;
 }
 

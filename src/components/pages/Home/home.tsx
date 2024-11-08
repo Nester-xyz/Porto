@@ -32,11 +32,15 @@ const Home = () => {
             setCurrentStep={setCurrentStep}
           />
         ) : currentStep === 2 ? (
-          <RenderStep2 shareableData={shareableData} />
+          <RenderStep2
+            shareableData={shareableData}
+            setCurrentStep={setCurrentStep}
+          />
         ) : (
           <RenderStep3
             totalTweets={shareableData.totalTweets}
             validTweets={shareableData.validTweets}
+            setCurrentStep={setCurrentStep}
           />
         )}
       </div>

@@ -1,14 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BLUESKY_USERNAME } from "@/lib/constant";
+import { Render3Props } from "@/types/render";
 import { CheckCircle } from "lucide-react";
 
-const RenderStep3 = ({
+const RenderStep3: React.FC<Render3Props> = ({
   totalTweets,
   validTweets,
-}: {
-  totalTweets: number;
-  validTweets: number;
+  setCurrentStep,
 }) => (
   <div className="space-y-6">
     <div className="grid gap-4">
@@ -62,7 +61,13 @@ const RenderStep3 = ({
       </Card>
 
       <div className="flex space-x-4 mt-4">
-        <Button onClick={() => {}} variant="outline" className="flex-1">
+        <Button
+          onClick={() => {
+            setCurrentStep(1);
+          }}
+          variant="outline"
+          className="flex-1"
+        >
           Import More Tweets
         </Button>
         <Button

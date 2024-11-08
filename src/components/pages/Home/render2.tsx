@@ -8,11 +8,14 @@ import {
   parseTweetsFile,
   sortTweetsWithDateRange,
 } from "@/lib/parse/parse";
-import { shareableData } from "@/types/render";
+import { Render2Props, shareableData } from "@/types/render";
 import { RichText } from "@atproto/api";
 import { useState } from "react";
 
-const RenderStep2 = ({ shareableData }: { shareableData: shareableData }) => {
+const RenderStep2: React.FC<Render2Props> = ({
+  setCurrentStep,
+  shareableData,
+}) => {
   const { agent } = useLogInContext();
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -69,6 +72,7 @@ const RenderStep2 = ({ shareableData }: { shareableData: shareableData }) => {
             tweet.full_text.startsWith("RT ") ||
             isQuote(tweets, tweet.id)
           ) {
+            console.log("skipped", tweet.full_text);
             continue;
           }
 
@@ -149,7 +153,7 @@ const RenderStep2 = ({ shareableData }: { shareableData: shareableData }) => {
             const postRkey = recordData.uri.split("/").pop();
             if (postRkey) {
               const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}/post/${postRkey}`;
-              console.log("Bluesky post created:", postUri);
+              console.log("Bluesky post created:", postRecord.text);
               importedTweet++;
             }
           } else {
@@ -159,7 +163,7 @@ const RenderStep2 = ({ shareableData }: { shareableData: shareableData }) => {
           console.error(`Error processing tweet ${tweet.id}:`, error);
         }
       }
-      // setCurrentStep(3);
+      setCurrentStep(3);
 
       console.log(`Import completed. ${importedTweet} tweets imported.`);
     } catch (error) {
@@ -199,7 +203,9 @@ const RenderStep2 = ({ shareableData }: { shareableData: shareableData }) => {
           )}
           <div className="flex space-x-4">
             <Button
-              onClick={() => {}}
+              onClick={() => {
+                setCurrentStep(1);
+              }}
               variant="outline"
               className="flex-1"
               disabled={isProcessing}
