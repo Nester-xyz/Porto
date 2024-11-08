@@ -31,6 +31,7 @@ import {
 
 const RenderStep1: React.FC<TweetAnalyzerStep1Props> = ({
   onAnalysisComplete,
+  setCurrentStep,
 }) => {
   const [fileState, setFileState] = useState<TFileState>(initialFileState);
   const [analysisState, setAnalysisState] =

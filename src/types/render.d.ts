@@ -9,6 +9,7 @@ export interface shareableData {
 
 export interface TweetAnalyzerStep1Props {
   onAnalysisComplete: (data: shareableData) => void;
+  setCurrentStep: (step: number) => void;
 }
 
 export type TFileState = {
