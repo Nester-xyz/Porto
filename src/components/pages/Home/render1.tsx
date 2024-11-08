@@ -27,7 +27,7 @@ import {
   initialFileState,
   initalTweetAnalyzer,
   intialDate,
-} from "./initalState";
+} from "@/lib/constant";
 
 const Render1: React.FC<TweetAnalyzerStep1Props> = ({ onAnalysisComplete }) => {
   const [fileState, setFileState] = useState<TFileState>(initialFileState);
@@ -65,6 +65,8 @@ const Render1: React.FC<TweetAnalyzerStep1Props> = ({ onAnalysisComplete }) => {
       const validTweets = sortTweetsWithDateRange(tweets, dateRange);
 
       const analysisResults = {
+        fileMap: fileState.fileMap,
+        dateRange: dateRange,
         totalTweets: tweets.length,
         validTweets: validTweets.length,
         tweetsLocation: fileState.tweetsLocation!,

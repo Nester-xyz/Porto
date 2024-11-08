@@ -1,10 +1,14 @@
+export interface shareableData {
+  fileMap: Map<string, File>;
+  totalTweets: number;
+  validTweets: number;
+  tweetsLocation: string;
+  mediaLocation: string;
+  dateRange: TDateRange;
+}
+
 export interface TweetAnalyzerStep1Props {
-  onAnalysisComplete: (data: {
-    totalTweets: number;
-    validTweets: number;
-    tweetsLocation: string;
-    mediaLocation: string;
-  }) => void;
+  onAnalysisComplete: (data: shareableData) => void;
 }
 
 export type TFileState = {
