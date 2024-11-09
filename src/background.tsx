@@ -1,21 +1,16 @@
 // background.ts
 import URI from "urijs";
-import { AtpAgent } from "@atproto/api";
+import AtpAgent from "@atproto/api";
 import he from "he";
 import { RichText } from "@atproto/api";
-import { ImportPayload, deserializeFile } from "./utils/serializableUtils";
+import { deserializeFile } from "./utils/serializableUtils";
 import { DateRange, ChunkMessage, FileTransferMessage } from "./utils/serializableUtils";
-import { ValidateUser } from "./lib/auth/validateUser";
+import { getAgentFromStorage } from "./utils/storageUtils";
 
 let windowId: number | null = null;
-let agentC: any = null;
+let agentC: AtpAgent | null;
 let simulate = false;
 let ApiDelay = 2500;
-(async () => {
-  const { agent }: any = await ValidateUser(true);
-  agentC = agent;
-  console.log(agent);
-})();
 
 const fileStorage = new Map<string, {
   chunks: Map<number, number[]>;
@@ -240,6 +235,7 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
     }
   }
 
+
   await postToBluesky(processedText, username);
 }
 
@@ -303,7 +299,7 @@ async function postToBluesky(text: string, username: string) {
     throw new Error("No agent found");
   }
 
-  console.log("agent did", agentC.did)
+  console.log("agent did ", agentC.did)
   console.log("agent ", agentC)
   try {
     console.log("agent account id ", agentC.accountDid);
@@ -322,11 +318,11 @@ async function postToBluesky(text: string, username: string) {
       $type: "app.bsky.feed.post",
       text: rt.text,
       facets: rt.facets,
-      createdAt: new Date().toISOString(),
     };
 
     if (!simulate) {
       await new Promise((resolve) => setTimeout(resolve, ApiDelay));
+      console.log("post agent", agentC, "post record", postRecord);
       const recordData = await agentC.post(postRecord);
 
       const postRkey = recordData.uri.split("/").pop();
@@ -539,15 +535,46 @@ function reassembleFile(fileId: string): File {
 }
 
 
-// for agent
-chrome.storage.local.onChanged.addListener((changes) => {
-  if (changes.agentData) {
-    agentC = changes.agentData.newValue;
-    console.log("changes listened", agentC);
+let lastProcessedUpdate: number = 0;
+
+chrome.storage.local.onChanged.addListener(async (changes) => {
+  try {
+    if (changes.agentData && changes.lastUpdated) {
+      const newUpdateTime = changes.lastUpdated.newValue;
+
+      // Only process if this is a newer update
+      if (newUpdateTime > lastProcessedUpdate) {
+        lastProcessedUpdate = newUpdateTime;
+        agentC = await getAgentFromStorage();
+        console.log("Agent reconstructed from storage:", agentC?.did);
+      }
+    }
+  } catch (error) {
+    console.error("Error handling storage changes:", error);
   }
 });
-chrome.storage.local.get('agentData', (result) => {
-  if (result.agentData) {
-    agentC = result.agentData;
+
+// Initial load with retry mechanism
+const initializeAgent = async (retryCount = 3, delay = 500) => {
+  for (let i = 0; i < retryCount; i++) {
+    try {
+      agentC = await getAgentFromStorage();
+      if (agentC) {
+        console.log("Initial agent loaded:", agentC.did);
+        return;
+      }
+      // If no agent found but more retries left, wait before trying again
+      if (i < retryCount - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    } catch (error) {
+      console.error(`Error loading initial agent data (attempt ${i + 1}):`, error);
+      if (i < retryCount - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
   }
-});
+};
+
+// Start initialization
+initializeAgent();

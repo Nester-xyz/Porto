@@ -7,13 +7,14 @@ import { HiEye } from "react-icons/hi";
 import { HiEyeSlash } from "react-icons/hi2";
 import { BsFillInfoCircleFill } from "react-icons/bs";
 import { CgDanger } from "react-icons/cg";
+import { saveAgentToStorage } from "@/utils/storageUtils";
 import { useLogInContext } from "@/hooks/LogInContext";
 import Home from "./pages/Home/home";
-import Page from "./pages/Home/page";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [userName, setUserName] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [showToolTip, setShowToolTip] = useState(false);
   const [error, setError] = useState<string>("");
@@ -23,28 +24,35 @@ const Login = () => {
   useEffect(() => {
     console.log("useeffect", loggedIn);
   }, [loggedIn]);
+
   const onLogin = async () => {
     if (!agent) {
       console.log("no agent", agent);
       return;
     }
 
-    console.log(agent);
+    setIsLoading(true);
     try {
       const user = await agent.login({
         identifier: userName.toString(),
         password: password.toString(),
       });
-      console.log(user);
+
       if (user.success) {
-        setLoggedIn(user.success);
+        await saveAgentToStorage(agent);
+        // Add a small delay to ensure storage is complete
+        await new Promise(resolve => setTimeout(resolve, 100));
+        setLoggedIn(true);
       }
-      console.log(loggedIn);
     } catch (error) {
       console.log("Error logging in:", error);
       setError("Invalid username or password");
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  // Rest of your component remains the same...
 
   const appPasswordRoute = () => {
     window.open(
