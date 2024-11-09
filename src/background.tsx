@@ -236,7 +236,8 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
   }
 
 
-  await postToBluesky(processedText, username);
+  console.log(tweet)
+  await postToBluesky(processedText, username, tweet.tweet.created_at);
 }
 
 async function resolveShortURL(url: string) {
@@ -294,13 +295,14 @@ async function processMediaFile(file: File, username: string) {
   }
 }
 
-async function postToBluesky(text: string, username: string) {
+async function postToBluesky(text: string, username: string, created_at: string) {
   if (!agentC) {
     throw new Error("No agent found");
   }
 
   console.log("agent did ", agentC.did)
   console.log("agent ", agentC)
+  console.log(created_at);
   try {
     console.log("agent account id ", agentC.accountDid);
     let postText = text;
@@ -314,10 +316,13 @@ async function postToBluesky(text: string, username: string) {
     const rt = new RichText({ text: postText });
     await rt.detectFacets(agentC);
 
+    const date = new Date(created_at);
+    const createdAt = date.toISOString();
     const postRecord = {
       $type: "app.bsky.feed.post",
       text: rt.text,
       facets: rt.facets,
+      createdAt: createdAt,
     };
 
     if (!simulate) {
@@ -327,7 +332,7 @@ async function postToBluesky(text: string, username: string) {
 
       const postRkey = recordData.uri.split("/").pop();
       if (postRkey) {
-        const postUri = `https://bsky.app/profile/${username}/post/${postRkey}`;
+        const postUri = `https://bsky.app/profile/${username}.bsky.social/post/${postRkey}`;
         console.log("Bluesky post created:", postUri);
         return postUri;
       }
