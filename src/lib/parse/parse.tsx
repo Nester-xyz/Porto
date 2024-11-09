@@ -120,7 +120,7 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
   return removeTcoLinks(newText);
 }
 export const sendFileInChunks = async (file: File): Promise<string> => {
-  const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+  const chunkSize = 10 * 1024 * 1024; // 5MB chunks
   const fileId = `file_${Date.now()}`;
   const totalChunks = Math.ceil(file.size / chunkSize);
 
