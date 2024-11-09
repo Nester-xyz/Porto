@@ -220,24 +220,54 @@ function filterTweets(tweets: any[], dateRange?: { min_date?: Date; max_date?: D
 
 async function processTweet(tweet: any, mediaFiles: any, username: string) {
   let processedText = await cleanTweetText(tweet.tweet.full_text);
+  let embeddedImage = [] as any;
 
   if (tweet.tweet.extended_entities?.media) {
+    console.log("Processing media for tweet:", tweet.tweet.id);
+
     for (const media of tweet.tweet.extended_entities.media) {
+      if (media.type !== "photo") {
+        console.log("Skipping non-photo media type:", media.type);
+        continue;
+      }
+
+      if (embeddedImage.length >= 4) {
+        console.log("Max images (4) reached, skipping remaining");
+        break;
+      }
+
       const mediaFileName = media.media_url.split('/').pop();
-      if (mediaFiles[mediaFileName]) {
+      const fullFileName = `${tweet.tweet.id}-${mediaFileName}`;
+      console.log("Looking for media file:", fullFileName);
+
+      // Find the matching file in mediaFiles
+      const mediaFile = Object.values(mediaFiles).find((file: any) =>
+        file.name === fullFileName
+      );
+
+      if (mediaFile) {
         try {
-          const mediaFile = deserializeFile(mediaFiles[mediaFileName]);
-          await processMediaFile(mediaFile, username);
+          console.log("Processing media file:", fullFileName);
+          const processedImage = await processMediaFile(mediaFile, username);
+          embeddedImage.push(processedImage);
+          console.log("Successfully processed image:", fullFileName);
         } catch (error) {
-          console.warn(`Failed to process media file ${mediaFileName}:`, error);
+          console.warn(`Failed to process media file ${fullFileName}:`, error);
         }
+      } else {
+        console.log("Media file not found in mediaFiles object:", fullFileName);
+        console.log("Available files:", Object.values(mediaFiles).map(f => (f as File).name));
       }
     }
   }
 
+  // Truncate text if needed
+  if (processedText.length > 300) {
+    processedText = processedText.substring(0, 296) + "...";
+  }
 
-  console.log(tweet)
-  await postToBluesky(processedText, username, tweet.tweet.created_at);
+  console.log(`Final post will contain ${embeddedImage.length} images`);
+  await postToBluesky(processedText, username, tweet.tweet.created_at, embeddedImage);
 }
 
 async function resolveShortURL(url: string) {
@@ -275,27 +305,46 @@ async function cleanTweetText(tweetFullText: string): Promise<string> {
 }
 
 async function processMediaFile(file: File, username: string) {
+  console.log(" inside processMediaFile");
   try {
     if (!agentC) {
+      console.log("no agent");
       throw new Error("No agent available for media upload");
     }
-
     const buffer = await file.arrayBuffer();
-    const blob = new Blob([buffer], { type: file.type });
-
-    // Upload to Bluesky
-    const response = await agentC.uploadBlob(blob, {
-      encoding: file.type
+    console.log("buffer ", buffer);
+    const fileType = file.type.split('/').pop();
+    const mimeType = fileType === "png"
+      ? "image/png"
+      : fileType === "jpg" || fileType === "jpeg"
+        ? "image/jpeg"
+        : file.type;
+    if (!mimeType.startsWith('image/')) {
+      throw new Error("Unsupported file type. Only images are supported.");
+    }
+    // Upload to bsky
+    const response = await agentC.uploadBlob(buffer, {
+      encoding: mimeType
     });
-
-    return response.data.blob; // Return the uploaded blob reference
+    console.log("image response ", response);
+    // Format the response similar to the embedded image structure
+    const embeddedImage = {
+      alt: "",
+      image: {
+        $type: "blob",
+        ref: response.data.blob.ref,
+        mimeType: response.data.blob.mimeType,
+        size: response.data.blob.size,
+      }
+    };
+    return embeddedImage;
   } catch (error) {
     console.error("Error processing media file:", error);
     throw error;
   }
 }
 
-async function postToBluesky(text: string, username: string, created_at: string) {
+async function postToBluesky(text: string, username: string, created_at: string, embeddedImage: any) {
   if (!agentC) {
     throw new Error("No agent found");
   }
@@ -323,6 +372,10 @@ async function postToBluesky(text: string, username: string, created_at: string)
       text: rt.text,
       facets: rt.facets,
       createdAt: createdAt,
+      embed:
+        embeddedImage.length > 0
+          ? { $type: "app.bsky.embed.images", images: embeddedImage }
+          : undefined,
     };
 
     if (!simulate) {
