@@ -50,7 +50,7 @@ chrome.action.onClicked.addListener(async () => {
     url: "popup.html",
     type: "popup",
     width: 500,
-    height: 300,
+    height: 800,
     focused: true,
   });
 
