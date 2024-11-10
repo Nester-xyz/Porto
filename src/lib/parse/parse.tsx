@@ -64,8 +64,8 @@ export const sortTweetsWithDateRange = (
   tweets
     .filter((tweet) => {
       const tweetDate = new Date(tweet.tweet.created_at);
-      if (isQuote(tweets, tweet.tweet.id)) return false;
-      if (!isPostValid(tweet.tweet)) return false;
+      // if (isQuote(tweets, tweet.tweet.id)) return false;
+      // if (!isPostValid(tweet.tweet)) return false;
       if (dateRange.min_date && tweetDate < dateRange.min_date) return false;
       if (dateRange.max_date && tweetDate > dateRange.max_date) return false;
       return true;
@@ -120,7 +120,7 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
   return removeTcoLinks(newText);
 }
 export const sendFileInChunks = async (file: File): Promise<string> => {
-  const chunkSize = 10 * 1024 * 1024; // 5MB chunks
+  const chunkSize = 15 * 1024 * 1024; // 5MB chunks
   const fileId = `file_${Date.now()}`;
   const totalChunks = Math.ceil(file.size / chunkSize);
 

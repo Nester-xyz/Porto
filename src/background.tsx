@@ -3,9 +3,9 @@ import URI from "urijs";
 import AtpAgent from "@atproto/api";
 import he from "he";
 import { RichText } from "@atproto/api";
-import { deserializeFile } from "./utils/serializableUtils";
 import { DateRange, ChunkMessage, FileTransferMessage } from "./utils/serializableUtils";
 import { getAgentFromStorage } from "./utils/storageUtils";
+import { sortTweetsWithDateRange } from "./lib/parse/parse";
 
 let windowId: number | null = null;
 let agentC: AtpAgent | null;
@@ -77,6 +77,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
     if (message.action === 'startImport') {
+      console.log("dateRange check ", message.data.dateRange);
+      console.log(message)
       handleImportWithFiles(message);
       sendResponse({ status: 'Import started' });
       return true;
@@ -136,7 +138,8 @@ async function handleImportWithFiles(request: {
 
     // Continue with existing import logic
     const tweets = await parseTweetsFile(tweetsFile);
-    const filteredTweets = filterTweets(tweets, dateRange);
+    const filteredTweets = sortTweetsWithDateRange(tweets, dateRange);
+    console.log("filterd tweets", filteredTweets.length)
 
     // Update state with total tweets
     const state = activeImports.get(importId)!;
@@ -207,16 +210,7 @@ async function parseTweetsFile(file: File): Promise<any[]> {
   }
 }
 
-function filterTweets(tweets: any[], dateRange?: { min_date?: Date; max_date?: Date }): any[] {
-  return tweets.filter(tweet => {
-    const tweetDate = new Date(tweet.tweet.created_at);
-    if (dateRange?.min_date && tweetDate < dateRange.min_date) return false;
-    if (dateRange?.max_date && tweetDate > dateRange.max_date) return false;
-    return !tweet.tweet.in_reply_to_screen_name &&
-      !tweet.tweet.full_text.startsWith('@') &&
-      !tweet.tweet.full_text.startsWith('RT ');
-  });
-}
+
 
 async function processTweet(tweet: any, mediaFiles: any, username: string) {
   let processedText = await cleanTweetText(tweet.tweet.full_text);
