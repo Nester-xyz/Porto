@@ -3,9 +3,10 @@ import URI from "urijs";
 import AtpAgent from "@atproto/api";
 import he from "he";
 import { RichText } from "@atproto/api";
-import { DateRange, ChunkMessage, FileTransferMessage } from "./utils/serializableUtils";
+import { ChunkMessage, FileTransferMessage } from "./utils/serializableUtils";
+import { TDateRange } from "./types/render";
 import { getAgentFromStorage } from "./utils/storageUtils";
-import { sortTweetsWithDateRange } from "./lib/parse/parse";
+import { parseTweetsFile, sortTweetsWithDateRange } from "./lib/parse/parse";
 
 let windowId: number | null = null;
 let agentC: AtpAgent | null;
@@ -97,7 +98,7 @@ async function handleImportWithFiles(request: {
     BLUESKY_USERNAME: string;
     ApiDelay: number;
     simulate: boolean;
-    dateRange: DateRange;
+    dateRange: TDateRange;
   }
 }) {
   const { tweetsFileId, mediaFileIds, BLUESKY_USERNAME, ApiDelay, simulate, dateRange } = request.data;
@@ -137,9 +138,13 @@ async function handleImportWithFiles(request: {
     console.log('File reassembly complete, processing tweets...');
 
     // Continue with existing import logic
-    const tweets = await parseTweetsFile(tweetsFile);
+    const tweetsFileContent = await tweetsFile.text();
+    const tweets = parseTweetsFile(tweetsFileContent);
+    console.log("b tweets", tweets);
+
+    console.log("b typeoftweets", typeof (tweets))
     const filteredTweets = sortTweetsWithDateRange(tweets, dateRange);
-    console.log("filterd tweets", filteredTweets.length)
+    console.log("filtered tweets", filteredTweets.length)
 
     // Update state with total tweets
     const state = activeImports.get(importId)!;
@@ -197,20 +202,6 @@ async function handleImportWithFiles(request: {
     activeImports.delete(importId);
   }
 }
-
-async function parseTweetsFile(file: File): Promise<any[]> {
-  const content = await file.text();
-  try {
-    return JSON.parse(content);
-  } catch {
-    const jsonContent = content
-      .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, '')
-      .replace(/;$/, '');
-    return JSON.parse(jsonContent);
-  }
-}
-
-
 
 async function processTweet(tweet: any, mediaFiles: any, username: string) {
   let processedText = await cleanTweetText(tweet.tweet.full_text);

@@ -7,10 +7,7 @@ export interface SerializableFile {
 	lastModified: number;
 	arrayBuffer: ArrayBuffer;
 }
-export interface DateRange {
-	min_date: Date | undefined;
-	max_date: Date | undefined;
-}
+
 export interface ChunkMessage {
 	type: 'chunk';
 	id: string;

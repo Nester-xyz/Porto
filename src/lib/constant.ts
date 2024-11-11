@@ -1,5 +1,5 @@
 export const ApiDelay = 2500;
-export const BLUESKY_USERNAME = localStorage.getItem("handle")?.split(".")[0];
+export const BLUESKY_USERNAME = localStorage.getItem("handle");
 
 export const initialFileState = {
   files: null as FileList | null,

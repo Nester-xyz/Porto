@@ -65,6 +65,8 @@ const RenderStep1: React.FC<Render1Props> = ({
 
       const tweetsFileContent = await tweetsFile.text();
       const tweets = parseTweetsFile(tweetsFileContent);
+      console.log("f tweets", tweets)
+      console.log("f typeoftweets", typeof (tweets))
       const validTweets = sortTweetsWithDateRange(tweets, dateRange);
 
       const analysisResults = {

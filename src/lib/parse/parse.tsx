@@ -17,66 +17,80 @@ export const findFileFromMap = (
 };
 
 export const parseTweetsFile = (content: string): Tweet[] => {
-  // console.log(content, "this is content");
   try {
+    // First try parsing as regular JSON
     return JSON.parse(content);
   } catch {
     try {
+      // If that fails, try cleaning up Twitter's export format
       const jsonContent = content
         .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, "")
         .replace(/;$/, "");
-      return JSON.parse(jsonContent);
+      const parsed = JSON.parse(jsonContent);
+      // Handle both possible data structures
+      return Array.isArray(parsed) ? parsed : parsed.tweets;
     } catch (error) {
       throw new Error(`Failed to parse tweets file: ${error}`);
     }
   }
 };
 
-export const isQuote = (tweets: Tweet[], id: string) => {
+export const isQuote = (tweets: Tweet[], id: string): boolean => {
   const twitterUrlRegex = /^https:\/\/twitter\.com\//;
-
   const tweet = tweets.find((tweet) => tweet.tweet.id === id);
-  if (!tweet) throw new Error(`Tweet with id ${id} not found`);
+  if (!tweet) return false; // Changed from throwing error to returning false
 
-  const urls = tweet.tweet.entities.urls;
-  if (urls.length < 0) return false;
+  const urls = tweet.tweet.entities?.urls || []; // Added optional chaining
+  if (urls.length === 0) return false; // Fixed comparison from < 0
 
-  const isQuoted = urls.find((url) => twitterUrlRegex.test(url.expanded_url));
-  return isQuoted ? true : false;
+  return urls.some((url) => twitterUrlRegex.test(url.expanded_url)); // Simplified using some()
 };
 
-export const isPostValid = (tweet: Tweet["tweet"]) => {
-  if (
+export const isPostValid = (tweet: Tweet["tweet"]): boolean => {
+  // Check for null/undefined before accessing properties
+  if (!tweet || !tweet.full_text) return false;
+
+  return !(
     tweet.in_reply_to_screen_name ||
     tweet.full_text.startsWith("@") ||
     tweet.full_text.startsWith("RT ")
-  ) {
-    console.log("skipped", tweet.full_text);
-    return false;
-  }
-  return true;
+  );
 };
 
-export const sortTweetsWithDateRange = (
-  tweets: Tweet[],
-  dateRange: TDateRange,
-) =>
-  tweets
+export const sortTweetsWithDateRange = (tweets: Tweet[], dateRange: TDateRange): Tweet[] => {
+  if (!Array.isArray(tweets)) return [];
+
+  // Parse date range boundaries once, outside the filter
+  const minDate = dateRange.min_date ? new Date(dateRange.min_date).getTime() : null;
+  const maxDate = dateRange.max_date ? new Date(dateRange.max_date).getTime() : null;
+
+  return tweets
     .filter((tweet) => {
-      const tweetDate = new Date(tweet.tweet.created_at);
-      // if (isQuote(tweets, tweet.tweet.id)) return false;
-      // if (!isPostValid(tweet.tweet)) return false;
-      if (dateRange.min_date && tweetDate < dateRange.min_date) return false;
-      if (dateRange.max_date && tweetDate > dateRange.max_date) return false;
-      return true;
+      try {
+        const tweetDate = new Date(tweet.tweet.created_at).getTime();
+        if (!tweetDate) return false; // Invalid date check
+
+        if (isQuote(tweets, tweet.tweet.id)) return false;
+        if (!isPostValid(tweet.tweet)) return false;
+
+        // Compare timestamps instead of Date objects
+        if (minDate && tweetDate < minDate) return false;
+        if (maxDate && tweetDate > maxDate) return false;
+
+        return true;
+      } catch (error) {
+        console.error('Error processing tweet:', error);
+        return false;
+      }
     })
     .sort((a, b) => {
+      // Sort using timestamps
       return (
         new Date(a.tweet.created_at).getTime() -
         new Date(b.tweet.created_at).getTime()
       );
     });
-
+};
 export async function cleanTweetText(tweetFullText: string): Promise<string> {
   let newText = tweetFullText;
   const urls: string[] = [];
