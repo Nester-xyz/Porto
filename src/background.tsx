@@ -1,7 +1,8 @@
 // background.ts
 import URI from "urijs";
-import AtpAgent from "@atproto/api";
+import AtpAgent, { AppBskyVideoDefs, BlobRef } from "@atproto/api";
 import he from "he";
+import * as FS from 'fs';
 import { RichText } from "@atproto/api";
 import { ChunkMessage, FileTransferMessage } from "./utils/serializableUtils";
 import { TDateRange } from "./types/render";
@@ -12,7 +13,11 @@ let windowId: number | null = null;
 let agentC: AtpAgent | null;
 let simulate = false;
 let ApiDelay = 2500;
-
+export interface VideoVariant {
+  bitrate: string;
+  content_type: string;
+  url: string;
+}
 const fileStorage = new Map<string, {
   chunks: Map<number, number[]>;
   metadata: {
@@ -140,6 +145,16 @@ async function handleImportWithFiles(request: {
     // Continue with existing import logic
     const tweetsFileContent = await tweetsFile.text();
     const tweets = parseTweetsFile(tweetsFileContent);
+    // Debug step
+    const targetId = "1626568550931660803"
+    const tweet = tweets.find(t => t.tweet.id === targetId);
+    if (!tweet) {
+      console.log(`Tweet with ID ${targetId} not found`);
+      return null;
+    }
+
+    // 1626568550931660803-91_NVpRYBj3a_sls.mp4
+
     console.log("b tweets", tweets);
 
     console.log("b typeoftweets", typeof (tweets))
@@ -206,42 +221,183 @@ async function handleImportWithFiles(request: {
 async function processTweet(tweet: any, mediaFiles: any, username: string) {
   let processedText = await cleanTweetText(tweet.tweet.full_text);
   let embeddedImage = [] as any;
+  let embeddedVideo = undefined as BlobRef | undefined;
 
   if (tweet.tweet.extended_entities?.media) {
     console.log("Processing media for tweet:", tweet.tweet.id);
-
     for (const media of tweet.tweet.extended_entities.media) {
-      if (media.type !== "photo") {
-        console.log("Skipping non-photo media type:", media.type);
-        continue;
-      }
-
-      if (embeddedImage.length >= 4) {
-        console.log("Max images (4) reached, skipping remaining");
-        break;
-      }
-
-      const mediaFileName = media.media_url.split('/').pop();
-      const fullFileName = `${tweet.tweet.id}-${mediaFileName}`;
-      console.log("Looking for media file:", fullFileName);
-
-      // Find the matching file in mediaFiles
-      const mediaFile = Object.values(mediaFiles).find((file: any) =>
-        file.name === fullFileName
-      );
-
-      if (mediaFile) {
-        try {
-          console.log("Processing media file:", fullFileName);
-          const processedImage = await processMediaFile(mediaFile, username);
-          embeddedImage.push(processedImage);
-          console.log("Successfully processed image:", fullFileName);
-        } catch (error) {
-          console.warn(`Failed to process media file ${fullFileName}:`, error);
+      if (media.type === "photo") {
+        if (embeddedImage.length >= 4) {
+          console.log("Max images (4) reached, skipping remaining");
+          break;
         }
+        const mediaFileName = media.media_url.split('/').pop();
+        const fullFileName = `${tweet.tweet.id}-${mediaFileName}`;
+        console.log("Looking for media file:", fullFileName);
+        // Find the matching file in mediaFiles
+        const mediaFile = Object.values(mediaFiles).find((file: any) =>
+          file.name === fullFileName
+        );
+        if (mediaFile) {
+          try {
+            console.log("Processing media file:", fullFileName);
+            const processedImage = await processMediaFile(mediaFile, username);
+            embeddedImage.push(processedImage);
+            console.log("Successfully processed image:", fullFileName);
+          } catch (error) {
+            console.warn(`Failed to process media file ${fullFileName}:`, error);
+          }
+        } else {
+          console.log("Media file not found in mediaFiles object:", fullFileName);
+          console.log("Available files:", Object.values(mediaFiles).map(f => (f as File).name));
+        }
+      } else if (media.type === "video") {
+        const media = tweet.tweet.extended_entities?.media?.[0];
+        console.log(media);
+
+        const highQualityVariant = media.video_info.variants.find(
+          (variant: VideoVariant) => variant.bitrate === '2176000' && variant.content_type === 'video/mp4'
+        );
+        const video_info = highQualityVariant.url;
+        const mediaFileName = video_info.split('/').pop()?.split('?')[0];
+        let videoFileName = `${tweet.tweet.id}-${mediaFileName}`;
+        const videoFile = await Object.values(mediaFiles).find((file: any) =>
+          file.name === videoFileName
+        ) as File;
+
+        const { data: serviceAuth } = await agentC!.com.atproto.server.getServiceAuth(
+          {
+            aud: `did:web:${agentC!.dispatchUrl.host}`,
+            lxm: "com.atproto.repo.uploadBlob",
+            exp: Date.now() / 1000 + 60 * 30, // 30 minutes
+          },
+        );
+
+        const token = serviceAuth.token;
+        const MAX_SINGLE_VIDEO_SIZE = 10 * 1024 * 1024 * 1024; // 10GB max size
+
+        // Check file size
+        if (videoFile.size > MAX_SINGLE_VIDEO_SIZE) {
+          throw new Error(`File size (${(videoFile.size / (1024 * 1024 * 1024)).toFixed(2)}GB) exceeds maximum allowed size of 10GB`);
+        }
+        // Prepare upload URL
+        const uploadUrl = new URL(
+          "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo"
+
+        );
+        uploadUrl.searchParams.append("did", agentC!.session!.did);
+        uploadUrl.searchParams.append("name", videoFileName);
+
+
+
+        console.log("Starting upload request...", {
+          fileSize: `${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`,
+          fileName: videoFile.name
+        });
+        let uploadResponse: any;
+        let jobStatus: any;
+        try {
+          // Initialize upload progress tracking
+          let bytesUploaded = 0;
+          const size = videoFile.size;
+
+          // Create a transform stream for progress tracking
+          const progressTrackingStream = new TransformStream({
+            transform(chunk, controller) {
+              controller.enqueue(chunk);
+              bytesUploaded += chunk.byteLength;
+              // Log progress percentage
+              console.log(
+                "Upload progress:",
+                Math.trunc((bytesUploaded / size) * 100) + "%"
+              );
+            },
+            flush() {
+              console.log("Upload complete ✨");
+            }
+          });
+
+          // Create upload URL with parameters
+          const uploadUrl = new URL(
+            "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo"
+          );
+          uploadUrl.searchParams.append("did", agentC!.session!.did);
+          uploadUrl.searchParams.append("name", videoFile.name);
+
+          // Convert file to stream and pipe through progress tracker
+          const fileStream = videoFile.stream();
+          const uploadStream = fileStream.pipeThrough(progressTrackingStream);
+
+          interface ExtendedRequestInit extends RequestInit {
+            duplex: 'half';
+          }
+
+          const fetchOptions: ExtendedRequestInit = {
+            method: "POST",
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'video/mp4',
+              'Content-Length': String(size),
+              'Accept': 'application/json',
+            },
+            body: uploadStream,
+            duplex: 'half',
+          };
+          // Perform upload
+          uploadResponse = await fetch(uploadUrl.toString(), fetchOptions);
+
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
+          }
+
+
+          jobStatus = (await uploadResponse.json()) as AppBskyVideoDefs.JobStatus;
+          console.log('Upload successful:', jobStatus);
+        } catch (error: any) {
+
+          if (error.message.includes('already_exists')) {
+            // Extract jobId from error message
+            const errorData = JSON.parse(error.message.split(' - ')[1]);
+            console.log('Using existing video jobId:', errorData.jobId);
+            jobStatus = {
+              jobId: errorData.jobId,
+              state: errorData.state,
+              did: errorData.did
+            } as AppBskyVideoDefs.JobStatus;
+          } else {
+            console.error('Upload error:', error);
+            throw error;
+          }
+        }
+        if (jobStatus.error) {
+          console.warn(` Video job status: '${jobStatus.error}'. Video will be posted as a link`);
+        }
+        console.log(" JobId:", jobStatus.jobId);
+
+        let blob: BlobRef | undefined = jobStatus.blob;
+
+        const videoAgent = new AtpAgent({ service: "https://video.bsky.app" });
+
+        while (!blob) {
+          const { data: status } = await videoAgent.app.bsky.video.getJobStatus(
+            { jobId: jobStatus.jobId },
+          );
+          console.log("  Status:",
+            status.jobStatus.state,
+            status.jobStatus.progress || "",
+          );
+          if (status.jobStatus.blob) {
+            blob = status.jobStatus.blob;
+          }
+          // wait a second
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+
+        embeddedVideo = blob;
       } else {
-        console.log("Media file not found in mediaFiles object:", fullFileName);
-        console.log("Available files:", Object.values(mediaFiles).map(f => (f as File).name));
+        console.log("Skipping non-photo, non-video media type:", media.type);
+        continue;
       }
     }
   }
@@ -251,9 +407,13 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
     processedText = processedText.substring(0, 296) + "...";
   }
 
-  console.log(`Final post will contain ${embeddedImage.length} images`);
-  await postToBluesky(processedText, username, tweet.tweet.created_at, embeddedImage);
+  console.log(`Final post will contain ${embeddedImage.length} images and ${embeddedVideo ? 1 : 0} videos`);
+  await postToBluesky(processedText, username, tweet.tweet.created_at, embeddedImage, embeddedVideo);
 }
+
+
+
+
 
 async function resolveShortURL(url: string) {
   try {
@@ -272,19 +432,17 @@ async function cleanTweetText(tweetFullText: string): Promise<string> {
     urls.push(url);
     return url;
   });
-
   if (urls.length > 0) {
     const newUrls = await Promise.all(urls.map(resolveShortURL));
     let j = 0;
     newText = URI.withinString(tweetFullText, (url) => {
-      if (newUrls[j].indexOf("/photo/") > 0) {
+      if (newUrls[j].indexOf("/photo/") > 0 || newUrls[j].indexOf("/video/") > 0) {
         j++;
         return "";
       }
       return newUrls[j++];
     });
   }
-
   newText = he.decode(newText);
   return newText;
 }
@@ -329,7 +487,7 @@ async function processMediaFile(file: File, username: string) {
   }
 }
 
-async function postToBluesky(text: string, username: string, created_at: string, embeddedImage: any) {
+async function postToBluesky(text: string, username: string, created_at: string, embeddedImage: any, embeddedVideo: any) {
   if (!agentC) {
     throw new Error("No agent found");
   }
@@ -363,6 +521,13 @@ async function postToBluesky(text: string, username: string, created_at: string,
           : undefined,
     };
 
+
+    const embed = getMergeEmbed(embeddedImage, embeddedVideo);
+
+    if (embed && Object.keys(embed).length > 0) {
+      Object.assign(postRecord, { embed });
+    }
+
     if (!simulate) {
       await new Promise((resolve) => setTimeout(resolve, ApiDelay));
       console.log("post agent", agentC, "post record", postRecord);
@@ -379,6 +544,23 @@ async function postToBluesky(text: string, username: string, created_at: string,
     console.error("Error posting to Bluesky:", error);
     throw error;
   }
+}
+
+export function getMergeEmbed(images: [] = [], embeddedVideo: {} | null = null): {} | null {
+  let mediaData: {} | null = null;
+  if (images.length > 0) {
+    mediaData = {
+      $type: "app.bsky.embed.images",
+      images
+    };
+  } else if (embeddedVideo != null) {
+    mediaData = {
+      $type: "app.bsky.embed.video",
+      video: embeddedVideo,
+    };
+  }
+
+  return mediaData;
 }
 
 // Add helper functions for managing background tasks
