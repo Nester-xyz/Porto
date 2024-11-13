@@ -3,9 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useLogInContext } from "@/hooks/LogInContext";
 import { ApiDelay, BLUESKY_USERNAME } from "@/lib/constant";
-import {
-  sendFileInChunks,
-} from "@/lib/parse/parse";
+import { sendFileInChunks } from "@/lib/parse/parse";
 import { Render2Props } from "@/types/render";
 import { useState, useEffect } from "react";
 
@@ -18,14 +16,8 @@ const RenderStep2: React.FC<Render2Props> = ({
   const [progress, setProgress] = useState(0);
   const [simulate, setSimulate] = useState(false);
 
-  const {
-    fileMap,
-    dateRange,
-    totalTweets,
-    tweetsLocation,
-    validTweets,
-  } = shareableData;
-
+  const { fileMap, dateRange, totalTweets, tweetsLocation, validTweets } =
+    shareableData;
 
   useEffect(() => {
     const handleProgress = (message: any) => {
@@ -42,6 +34,12 @@ const RenderStep2: React.FC<Render2Props> = ({
     return () => chrome.runtime.onMessage.removeListener(handleProgress);
   }, []);
 
+  useEffect(() => {
+    if (progress === 100) {
+      setCurrentStep(3);
+    }
+  }, [progress]);
+
   const tweet_to_bsky = async () => {
     if (!agent) {
       console.log("No agent found");
@@ -57,27 +55,27 @@ const RenderStep2: React.FC<Render2Props> = ({
         throw new Error(`Tweets file not found at ${tweetsLocation}`);
       }
 
-      console.log('Starting file transfer process...');
+      console.log("Starting file transfer process...");
 
       // Send tweets file in chunks
       const tweetsFileId = await sendFileInChunks(tweetsFile);
-      console.log('Tweets file transfer complete, ID:', tweetsFileId);
+      console.log("Tweets file transfer complete, ID:", tweetsFileId);
 
       // Small delay to ensure all chunks are processed
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Prepare media files
       const mediaFileIds: Record<string, string> = {};
       for (const [path, file] of fileMap.entries()) {
-        if (path.includes('tweets_media') && file.size > 0) {
+        if (path.includes("tweets_media") && file.size > 0) {
           const fileId = await sendFileInChunks(file);
           mediaFileIds[file.name] = fileId;
           // Small delay between files
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
 
-      console.log('All files transferred, starting import...');
+      console.log("All files transferred, starting import...");
 
       // Start the import process
       await chrome.runtime.sendMessage({
@@ -88,11 +86,9 @@ const RenderStep2: React.FC<Render2Props> = ({
           BLUESKY_USERNAME,
           ApiDelay,
           simulate,
-          dateRange
-        }
+          dateRange,
+        },
       });
-
-
     } catch (error) {
       console.error("Error in tweet_to_bsky:", error);
       setIsProcessing(false);
@@ -119,7 +115,12 @@ const RenderStep2: React.FC<Render2Props> = ({
           </div>
         </Card>
 
-        <div className="space-y-4">
+        <div className="space-y-4 w-full">
+          {progress === 0 && isProcessing && (
+            <Badge variant="destructive" className="w-full py-1 px-2">
+              Chunks are being loaded, don't close this window.
+            </Badge>
+          )}
           {isProcessing && (
             <div className="w-full bg-gray-200 rounded-full h-2.5">
               <div
@@ -149,9 +150,6 @@ const RenderStep2: React.FC<Render2Props> = ({
             >
               {isProcessing ? "Processing..." : "Import to Bluesky"}
             </Button>
-            {(progress === 0 && isProcessing) && (
-              <Badge variant="destructive">Chunks are being loaded, don't close this window.</Badge>
-            )}
           </div>
         </div>
       </div>
