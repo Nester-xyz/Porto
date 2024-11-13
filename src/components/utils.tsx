@@ -69,6 +69,7 @@ export const sortTweetsWithDateRange = (
       );
     });
 
+
 export async function cleanTweetText(tweetFullText: string): Promise<string> {
   let newText = tweetFullText;
   const urls: string[] = [];
@@ -313,14 +314,6 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
         labels: {
           $type: 'com.atproto.label.defs#selfLabels',
           values: [
-            ...(profileData.location ? [{
-              val: profileData.location,
-              type: 'location'
-            }] : []),
-            ...(profileData.url ? [{
-              val: profileData.url,
-              type: 'website'
-            }] : [])
           ]
         },
 
