@@ -30,10 +30,13 @@ import {
   intialDate,
 } from "@/lib/constant";
 import { useLogInContext } from "@/hooks/LogInContext";
+import Sync from "./sync";
 
 const RenderStep1: React.FC<Render1Props> = ({
   onAnalysisComplete,
+  syncXProfile,
   setCurrentStep,
+  setSyncXProfile,
 }) => {
   const { agent } = useLogInContext();
   const [fileState, setFileState] = useState<TFileState>(initialFileState);
@@ -141,9 +144,11 @@ const RenderStep1: React.FC<Render1Props> = ({
 
         {fileState.files && fileState.files.length > 0 && (
           <div className="mt-2">
-            <p className="text-sm text-gray-600 mb-2">
-              {fileState.files.length} files selected
-            </p>
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-600 mb-2">
+                {fileState.files.length} files selected
+              </p>
+            </div>
             <FileFoundCard
               cardName="tweets.js"
               found={isFilePresent("tweets.js")}
@@ -155,6 +160,7 @@ const RenderStep1: React.FC<Render1Props> = ({
           <h3 className="font-medium mb-3">Select Date Range</h3>
           <DateRangePicker dateRange={dateRange} setDateRange={setDateRange} />
         </div>
+        <Sync checked={syncXProfile} updateChecked={setSyncXProfile} />
 
         <Button
           onClick={analyzeTweets}

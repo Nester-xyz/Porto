@@ -10,6 +10,8 @@ export interface shareableData {
 export interface Render1Props {
   onAnalysisComplete: (data: shareableData) => void;
   setCurrentStep: (step: number) => void;
+  syncXProfile: boolean;
+  setSyncXProfile: (value: boolean) => void;
 }
 
 export interface Render2Props {
