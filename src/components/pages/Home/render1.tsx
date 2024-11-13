@@ -37,6 +37,7 @@ const RenderStep1: React.FC<Render1Props> = ({
 }) => {
   const { agent } = useLogInContext();
   const [fileState, setFileState] = useState<TFileState>(initialFileState);
+  const [showBulkDelete, setShowBulkDelete] = useState<boolean>(false);
   const [analysisState, setAnalysisState] =
     useState<TTweetAnalyzer>(initalTweetAnalyzer);
   const [dateRange, setDateRange] = useState<TDateRange>(intialDate);
@@ -68,8 +69,8 @@ const RenderStep1: React.FC<Render1Props> = ({
 
       const tweetsFileContent = await tweetsFile.text();
       const tweets = parseTweetsFile(tweetsFileContent);
-      console.log("f tweets", tweets)
-      console.log("f typeoftweets", typeof (tweets))
+      console.log("f tweets", tweets);
+      console.log("f typeoftweets", typeof tweets);
       const validTweets = sortTweetsWithDateRange(tweets, dateRange);
 
       const analysisResults = {
@@ -163,12 +164,11 @@ const RenderStep1: React.FC<Render1Props> = ({
           {analysisState.isAnalyzing ? "Analyzing..." : "Analyze Tweets"}
         </Button>
       </div>
-      <Button
-        onClick={() => bulkDeleteBskyPost(agent!)}
-        className="w-full"
-      >
-        Bulk Delete
-      </Button>
+      {showBulkDelete && (
+        <Button onClick={() => bulkDeleteBskyPost(agent!)} className="w-full">
+          Bulk Delete
+        </Button>
+      )}
       <Button
         onClick={() => importXProfileToBsky(agent!, fileState)}
         className="w-full"
