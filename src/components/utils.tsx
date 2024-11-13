@@ -211,7 +211,7 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
     // Find the profile.js file in the correct path structure
     const findProfileFile = (fileName: string) => {
       for (const [path, file] of fileMap.entries()) {
-        if (path.includes('data/profile.js')) {
+        if (path.includes(fileName)) {
           return file;
         }
       }
@@ -219,16 +219,23 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
     };
 
     const profileFile = findProfileFile('data/profile.js');
+    const accountFile = findProfileFile('data/account.js');
     if (!profileFile) {
       throw new Error('Profile data file not found in the uploaded Twitter archive');
+    }
+    if (!accountFile) {
+      throw new Error('Account data file not found in the uploaded Twitter archive');
     }
 
     // Read and parse the profile data
     const profileContent = await profileFile.text();
     console.log("Raw profile content:", profileContent.substring(0, 200)); // Debug log
 
+    const accountContent = await accountFile.text();
+    console.log("Raw profile content:", accountContent.substring(0, 200)); // Debug log
     // Handle the window._sharedData format if present
     let profileJson;
+    let accountJson;
 
     try {
       // Remove 'window.YTD.profile.part0 = ' and parse the remaining array
@@ -237,6 +244,18 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
         .trim();
       const profileArray = JSON.parse(cleanContent);
       profileJson = profileArray[0].profile; // Access the first profile object
+    } catch (e) {
+      console.error("Failed to parse profile data:", e);
+      throw new Error('Failed to parse profile data from file');
+    }
+
+    try {
+      // Remove 'window.YTD.account.part0 = ' and parse the remaining array
+      const cleanContent = accountContent
+        .replace(/window\.YTD\.account\.part0 = /, '')
+        .trim();
+      const accountArray = JSON.parse(cleanContent);
+      accountJson = accountArray[0].account; // Access the first account object
     } catch (e) {
       console.error("Failed to parse profile data:", e);
       throw new Error('Failed to parse profile data from file');
@@ -285,7 +304,7 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
     await agent.upsertProfile(async (existing) => {
       const updatedProfile: AppBskyActorProfile.Record = {
         $type: 'app.bsky.actor.profile',  // Add this line
-        displayName: profileData.name,
+        displayName: accountJson.accountDisplayName,
         description: profileData.description,
         ...(avatarRef && { avatar: avatarRef }),
         ...(bannerRef && { banner: bannerRef }),

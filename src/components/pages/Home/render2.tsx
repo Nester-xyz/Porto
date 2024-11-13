@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useLogInContext } from "@/hooks/LogInContext";
 import { ApiDelay, BLUESKY_USERNAME } from "@/lib/constant";
 import {
@@ -148,6 +149,9 @@ const RenderStep2: React.FC<Render2Props> = ({
             >
               {isProcessing ? "Processing..." : "Import to Bluesky"}
             </Button>
+            {(progress === 0 && isProcessing) && (
+              <Badge variant="destructive">Chunks are being loaded, don't close this window.</Badge>
+            )}
           </div>
         </div>
       </div>
