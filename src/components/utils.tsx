@@ -1,7 +1,12 @@
 import { DateRange, Tweet } from "@/types/tweets.type";
 import he from "he";
-import AtpAgent from "@atproto/api";
+import AtpAgent, { AppBskyActorProfile } from "@atproto/api";
 import URI from "urijs";
+import {
+  TFileState,
+} from "@/types/render";
+
+
 
 export const findFileFromMap = (
   fileMap: Map<String, File>,
@@ -188,3 +193,156 @@ export async function bulkDeleteBskyPost(
     throw error;
   }
 }
+
+
+export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileState) => {
+  if (!agent) {
+    throw new Error('Bluesky agent not initialized');
+  }
+
+  try {
+    const fileMap = new Map(
+      Array.from(fileState.files || []).map((file) => [
+        file.webkitRelativePath,
+        file,
+      ])
+    );
+
+    // Find the profile.js file in the correct path structure
+    const findProfileFile = (fileName: string) => {
+      for (const [path, file] of fileMap.entries()) {
+        if (path.includes('data/profile.js')) {
+          return file;
+        }
+      }
+      return null;
+    };
+
+    const profileFile = findProfileFile('data/profile.js');
+    if (!profileFile) {
+      throw new Error('Profile data file not found in the uploaded Twitter archive');
+    }
+
+    // Read and parse the profile data
+    const profileContent = await profileFile.text();
+    console.log("Raw profile content:", profileContent.substring(0, 200)); // Debug log
+
+    // Handle the window._sharedData format if present
+    let profileJson;
+
+    try {
+      // Remove 'window.YTD.profile.part0 = ' and parse the remaining array
+      const cleanContent = profileContent
+        .replace(/window\.YTD\.profile\.part0 = /, '')
+        .trim();
+      const profileArray = JSON.parse(cleanContent);
+      profileJson = profileArray[0].profile; // Access the first profile object
+    } catch (e) {
+      console.error("Failed to parse profile data:", e);
+      throw new Error('Failed to parse profile data from file');
+    }
+
+    // Extract relevant profile data with fallbacks
+    const profileData: ProfileData = {
+      profile_image_url: profileJson.avatarMediaUrl,
+      profile_banner_url: profileJson.headerMediaUrl,
+      description: profileJson.description.bio,
+      name: profileJson.displayName || '', // if displayName is not available, use empty string
+      location: profileJson.description.location,
+      url: profileJson.description.website,
+    };
+    // Upload profile image
+    let avatarRef: any;
+    if (profileData.profile_image_url) {
+      try {
+        const imageResponse = await fetch(profileData.profile_image_url);
+        const imageBlob = await imageResponse.blob();
+        const uploadResponse = await agent.uploadBlob(imageBlob, {
+          encoding: 'image/jpeg',
+        });
+        avatarRef = uploadResponse.data.blob;
+      } catch (error) {
+        console.warn('Failed to upload avatar image:', error);
+      }
+    }
+
+    // Upload banner image
+    let bannerRef: any;
+    if (profileData.profile_banner_url) {
+      try {
+        const bannerResponse = await fetch(profileData.profile_banner_url);
+        const bannerBlob = await bannerResponse.blob();
+        const bannerUploadResponse = await agent.uploadBlob(bannerBlob, {
+          encoding: 'image/jpeg',
+        });
+        bannerRef = bannerUploadResponse.data.blob;
+      } catch (error) {
+        console.warn('Failed to upload banner image:', error);
+      }
+    }
+
+    // Update profile using the correct upsertProfile method
+    await agent.upsertProfile(async (existing) => {
+      const updatedProfile: AppBskyActorProfile.Record = {
+        $type: 'app.bsky.actor.profile',  // Add this line
+        displayName: profileData.name,
+        description: profileData.description,
+        ...(avatarRef && { avatar: avatarRef }),
+        ...(bannerRef && { banner: bannerRef }),
+
+        // Correct labels structure
+        labels: {
+          $type: 'com.atproto.label.defs#selfLabels',
+          values: [
+            ...(profileData.location ? [{
+              val: profileData.location,
+              type: 'location'
+            }] : []),
+            ...(profileData.url ? [{
+              val: profileData.url,
+              type: 'website'
+            }] : [])
+          ]
+        },
+
+        // Preserve existing fields
+        ...(existing?.createdAt && { createdAt: existing.createdAt }),
+        ...(existing?.pinnedPost && { pinnedPost: existing.pinnedPost }),
+        ...(existing?.joinedViaStarterPack && {
+          joinedViaStarterPack: existing.joinedViaStarterPack
+        })
+      };
+
+      // Preserve existing fields
+      if (existing?.createdAt) {
+        updatedProfile.createdAt = existing.createdAt;
+      }
+      if (existing?.pinnedPost) {
+        updatedProfile.pinnedPost = existing.pinnedPost;
+      }
+      if (existing?.joinedViaStarterPack) {
+        updatedProfile.joinedViaStarterPack = existing.joinedViaStarterPack;
+      }
+
+      return updatedProfile;
+    });
+
+    return {
+      success: true,
+      message: 'Profile successfully updated on Bluesky',
+      updatedFields: {
+        avatar: !!avatarRef,
+        banner: !!bannerRef,
+        description: true,
+        name: true,
+        location: !!profileData.location,
+        url: !!profileData.url,
+      },
+    };
+  } catch (error) {
+    console.error('Error importing profile to Bluesky:', error);
+    throw new Error(
+      `Failed to import profile: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+};

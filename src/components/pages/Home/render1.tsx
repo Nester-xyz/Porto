@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import DateRangePicker from "@/components/DateRangePicker";
 import FileFoundCard from "@/components/FileFoundCard";
-import { bulkDeleteBskyPost } from "@/components/utils";
+import { bulkDeleteBskyPost, importXProfileToBsky } from "@/components/utils";
 
 // libraries
 import {
@@ -168,6 +168,13 @@ const RenderStep1: React.FC<Render1Props> = ({
         className="w-full"
       >
         Bulk Delete
+      </Button>
+      <Button
+        onClick={() => importXProfileToBsky(agent!, fileState)}
+        className="w-full"
+        disabled={!isFilePresent("profile.js") || analysisState.isAnalyzing}
+      >
+        Sync X Profile section
       </Button>
     </div>
   );
