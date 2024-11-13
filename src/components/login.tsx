@@ -41,7 +41,7 @@ const Login = () => {
       if (user.success) {
         await saveAgentToStorage(agent);
         // Add a small delay to ensure storage is complete
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         setLoggedIn(true);
       }
     } catch (error) {

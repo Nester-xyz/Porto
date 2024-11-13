@@ -15,11 +15,13 @@ export const initalTweetAnalyzer = {
 };
 
 export const intialDate = {
-  min_date: undefined,  // "Fri Feb 17 13:05:37 +0000 2023",
-  max_date: undefined  // "Sat Feb 18 13:05:37 +0000 2023",
+  min_date: undefined, // "Fri Feb 17 13:05:37 +0000 2023",
+  max_date: undefined, // "Sat Feb 18 13:05:37 +0000 2023",
 };
 
 export const initialShareableData = {
+  showXprofile: false,
+  fileState: initialFileState,
   fileMap: new Map<string, File>(),
   totalTweets: 0,
   validTweets: 0,

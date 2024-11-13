@@ -75,6 +75,7 @@ const Home = () => {
           />
         ) : currentStep === 2 ? (
           <RenderStep2
+            showXProfile={showXprofile}
             shareableData={shareableData}
             setCurrentStep={setCurrentStep}
           />

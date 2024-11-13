@@ -1,4 +1,5 @@
 export interface shareableData {
+  fileState: TFileState;
   fileMap: Map<string, File>;
   totalTweets: number;
   validTweets: number;
@@ -15,6 +16,7 @@ export interface Render1Props {
 }
 
 export interface Render2Props {
+  showXProfile: boolean;
   shareableData: shareableData;
   setCurrentStep: (step: number) => void;
 }

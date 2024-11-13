@@ -4,8 +4,15 @@ import { Button } from "@/components/ui/button";
 import DateRangePicker from "@/components/DateRangePicker";
 import { Card } from "@/components/ui/card";
 
-export const renderStep1 = ({ files, setFiles, CheckFile, dateRange, analyzeTweets, isAnalyzing, setDateRange }: any) => (
-
+export const renderStep1 = ({
+  files,
+  setFiles,
+  CheckFile,
+  dateRange,
+  analyzeTweets,
+  isAnalyzing,
+  setDateRange,
+}: any) => (
   <div className="space-y-6">
     <div className="space-y-6">
       <div>
@@ -14,9 +21,7 @@ export const renderStep1 = ({ files, setFiles, CheckFile, dateRange, analyzeTwee
           className="flex flex-col items-center px-4 py-6 bg-white text-blue rounded-lg shadow-lg tracking-wide uppercase border border-blue cursor-pointer hover:bg-blue-600 hover:text-white"
         >
           <Upload className="w-8 h-8" />
-          <span className="mt-2 text-base leading-normal">
-            Select a folder
-          </span>
+          <span className="mt-2 text-base leading-normal">Select a folder</span>
           <input
             id="file-upload"
             type="file"
@@ -34,10 +39,7 @@ export const renderStep1 = ({ files, setFiles, CheckFile, dateRange, analyzeTwee
           <p className="text-sm text-gray-600 mb-2">
             {files.length} files selected
           </p>
-          <FileFoundCard
-            cardName="tweets.js"
-            found={CheckFile("tweets.js")}
-          />
+          <FileFoundCard cardName="tweets.js" found={CheckFile("tweets.js")} />
         </div>
       )}
 
@@ -57,7 +59,15 @@ export const renderStep1 = ({ files, setFiles, CheckFile, dateRange, analyzeTwee
   </div>
 );
 
-export const renderStep2 = ({ totalTweets, validTweets, isProcessing, progress, setCurrentStep, setSimulate, tweet_to_bsky }: any) => (
+export const renderStep2 = ({
+  totalTweets,
+  validTweets,
+  isProcessing,
+  progress,
+  setCurrentStep,
+  setSimulate,
+  tweet_to_bsky,
+}: any) => (
   <div className="space-y-6">
     <div className="grid gap-4">
       <Card className="p-4">
@@ -70,7 +80,8 @@ export const renderStep2 = ({ totalTweets, validTweets, isProcessing, progress, 
             Valid tweets to import: {validTweets}
           </p>
           <p className="text-sm text-gray-600">
-            Excluded: {totalTweets - validTweets} (retweets, replies, or outside date range)
+            Excluded: {totalTweets - validTweets} (retweets, replies, or outside
+            date range)
           </p>
         </div>
       </Card>
@@ -108,5 +119,3 @@ export const renderStep2 = ({ totalTweets, validTweets, isProcessing, progress, 
     </div>
   </div>
 );
-
-

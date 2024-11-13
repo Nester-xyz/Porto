@@ -49,10 +49,7 @@ const RenderStep3: React.FC<Render3Props> = ({
           <Button
             className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg transform transition hover:scale-105"
             onClick={() =>
-              window.open(
-                "https://www.paypal.com/donate/?hosted_button_id=PFD7AXJMPSDYJ",
-                "_blank",
-              )
+              window.open("https://www.buymeacoffee.com/nester", "_blank")
             }
           >
             Donate
