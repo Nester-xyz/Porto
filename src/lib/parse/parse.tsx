@@ -57,12 +57,19 @@ export const isPostValid = (tweet: Tweet["tweet"]): boolean => {
   );
 };
 
-export const sortTweetsWithDateRange = (tweets: Tweet[], dateRange: TDateRange): Tweet[] => {
+export const sortTweetsWithDateRange = (
+  tweets: Tweet[],
+  dateRange: TDateRange,
+): Tweet[] => {
   if (!Array.isArray(tweets)) return [];
 
   // Parse date range boundaries once, outside the filter
-  const minDate = dateRange.min_date ? new Date(dateRange.min_date).getTime() : null;
-  const maxDate = dateRange.max_date ? new Date(dateRange.max_date).getTime() : null;
+  const minDate = dateRange.min_date
+    ? new Date(dateRange.min_date).getTime()
+    : null;
+  const maxDate = dateRange.max_date
+    ? new Date(dateRange.max_date).getTime()
+    : null;
 
   return tweets
     .filter((tweet) => {
@@ -79,7 +86,7 @@ export const sortTweetsWithDateRange = (tweets: Tweet[], dateRange: TDateRange):
 
         return true;
       } catch (error) {
-        console.error('Error processing tweet:', error);
+        console.error("Error processing tweet:", error);
         return false;
       }
     })
@@ -142,11 +149,11 @@ export const sendFileInChunks = async (file: File): Promise<string> => {
 
   // Send initial file metadata
   await chrome.runtime.sendMessage({
-    action: 'fileTransfer',
+    action: "fileTransfer",
     fileId,
     fileName: file.name,
     fileType: file.type,
-    totalSize: file.size
+    totalSize: file.size,
   });
 
   // Read and send file in chunks
@@ -159,11 +166,11 @@ export const sendFileInChunks = async (file: File): Promise<string> => {
     const chunk = uint8Array.slice(start, end);
 
     await chrome.runtime.sendMessage({
-      type: 'chunk',
+      type: "chunk",
       id: fileId,
       chunkIndex: i,
       totalChunks,
-      data: Array.from(chunk)
+      data: Array.from(chunk),
     });
 
     console.log(`Sent chunk ${i + 1}/${totalChunks} for ${file.name}`);

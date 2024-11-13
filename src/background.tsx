@@ -2,7 +2,7 @@
 import URI from "urijs";
 import AtpAgent, { AppBskyVideoDefs, BlobRef } from "@atproto/api";
 import he from "he";
-import * as FS from 'fs';
+import * as FS from "fs";
 import { RichText } from "@atproto/api";
 import { ChunkMessage, FileTransferMessage } from "./utils/serializableUtils";
 import { TDateRange } from "./types/render";
@@ -18,17 +18,20 @@ export interface VideoVariant {
   content_type: string;
   url: string;
 }
-const fileStorage = new Map<string, {
-  chunks: Map<number, number[]>;
-  metadata: {
-    fileName: string;
-    fileType: string;
-    totalSize: number;
-    totalChunks: number;
-    receivedChunks: number;
-    isComplete: boolean;
-  };
-}>();
+const fileStorage = new Map<
+  string,
+  {
+    chunks: Map<number, number[]>;
+    metadata: {
+      fileName: string;
+      fileType: string;
+      totalSize: number;
+      totalChunks: number;
+      receivedChunks: number;
+      isComplete: boolean;
+    };
+  }
+>();
 // Store active imports with their states
 interface ImportState {
   isActive: boolean;
@@ -70,28 +73,28 @@ chrome.action.onClicked.addListener(async () => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Received message:', message.action || message.type);
+  console.log("Received message:", message.action || message.type);
   try {
-    if (message.type === 'chunk') {
+    if (message.type === "chunk") {
       handleChunk(message);
-      sendResponse({ status: 'chunk_received' });
+      sendResponse({ status: "chunk_received" });
       return true;
     }
-    if (message.action === 'fileTransfer') {
+    if (message.action === "fileTransfer") {
       handleFileTransfer(message);
-      sendResponse({ status: 'transfer_initiated' });
+      sendResponse({ status: "transfer_initiated" });
       return true;
     }
-    if (message.action === 'startImport') {
+    if (message.action === "startImport") {
       console.log("dateRange check ", message.data.dateRange);
-      console.log(message)
+      console.log(message);
       handleImportWithFiles(message);
-      sendResponse({ status: 'Import started' });
+      sendResponse({ status: "Import started" });
       return true;
     }
   } catch (error: any) {
-    console.error('Error handling message:', error);
-    sendResponse({ status: 'error', error: error.message });
+    console.error("Error handling message:", error);
+    sendResponse({ status: "error", error: error.message });
   }
   return false;
 });
@@ -104,9 +107,16 @@ async function handleImportWithFiles(request: {
     ApiDelay: number;
     simulate: boolean;
     dateRange: TDateRange;
-  }
+  };
 }) {
-  const { tweetsFileId, mediaFileIds, BLUESKY_USERNAME, ApiDelay, simulate, dateRange } = request.data;
+  const {
+    tweetsFileId,
+    mediaFileIds,
+    BLUESKY_USERNAME,
+    ApiDelay,
+    simulate,
+    dateRange,
+  } = request.data;
   const importId = Date.now().toString();
 
   try {
@@ -115,17 +125,17 @@ async function handleImportWithFiles(request: {
       isActive: true,
       progress: 0,
       processedTweets: 0,
-      totalTweets: 0
+      totalTweets: 0,
     });
 
-    console.log('Starting file reassembly...');
+    console.log("Starting file reassembly...");
 
     // Get reassembled tweets file
     let tweetsFile: File;
     try {
       tweetsFile = reassembleFile(tweetsFileId);
     } catch (error: any) {
-      console.error('Error reassembling tweets file:', error);
+      console.error("Error reassembling tweets file:", error);
       throw new Error(`Failed to reassemble tweets file: ${error.message}`);
     }
 
@@ -140,7 +150,7 @@ async function handleImportWithFiles(request: {
       }
     }
 
-    console.log('File reassembly complete, processing tweets...');
+    console.log("File reassembly complete, processing tweets...");
 
     // Continue with existing import logic
     const tweetsFileContent = await tweetsFile.text();
@@ -151,7 +161,6 @@ async function handleImportWithFiles(request: {
     // Update state with total tweets
     const state = activeImports.get(importId)!;
     state.totalTweets = filteredTweets.length;
-
 
     // Process tweets
     for (const tweet of filteredTweets) {
@@ -166,39 +175,38 @@ async function handleImportWithFiles(request: {
 
         // Broadcast progress
         chrome.runtime.sendMessage({
-          action: 'importProgress',
+          action: "importProgress",
           state: {
             progress: state.progress,
             processedTweets: state.processedTweets,
-            totalTweets: state.totalTweets
-          }
+            totalTweets: state.totalTweets,
+          },
         });
 
-        await new Promise(resolve => setTimeout(resolve, ApiDelay));
+        await new Promise((resolve) => setTimeout(resolve, ApiDelay));
       } catch (error: any) {
-        console.error('Error processing tweet:', error);
-        console.error('Import error:', error);
+        console.error("Error processing tweet:", error);
+        console.error("Import error:", error);
         chrome.runtime.sendMessage({
-          action: 'importError',
-          error: error.message
+          action: "importError",
+          error: error.message,
         });
       }
     }
 
     // Send completion message
     chrome.runtime.sendMessage({
-      action: 'importComplete',
+      action: "importComplete",
       state: {
         totalProcessed: state.processedTweets,
-        success: true
-      }
+        success: true,
+      },
     });
-
   } catch (error: any) {
-    console.error('Import error:', error);
+    console.error("Import error:", error);
     chrome.runtime.sendMessage({
-      action: 'importError',
-      error: error.message
+      action: "importError",
+      error: error.message,
     });
   } finally {
     activeImports.delete(importId);
@@ -218,12 +226,12 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
           console.log("Max images (4) reached, skipping remaining");
           break;
         }
-        const mediaFileName = media.media_url.split('/').pop();
+        const mediaFileName = media.media_url.split("/").pop();
         const fullFileName = `${tweet.tweet.id}-${mediaFileName}`;
         console.log("Looking for media file:", fullFileName);
         // Find the matching file in mediaFiles
-        const mediaFile = Object.values(mediaFiles).find((file: any) =>
-          file.name === fullFileName
+        const mediaFile = Object.values(mediaFiles).find(
+          (file: any) => file.name === fullFileName,
         );
         if (mediaFile) {
           try {
@@ -232,54 +240,63 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
             embeddedImage.push(processedImage);
             console.log("Successfully processed image:", fullFileName);
           } catch (error) {
-            console.warn(`Failed to process media file ${fullFileName}:`, error);
+            console.warn(
+              `Failed to process media file ${fullFileName}:`,
+              error,
+            );
           }
         } else {
-          console.log("Media file not found in mediaFiles object:", fullFileName);
-          console.log("Available files:", Object.values(mediaFiles).map(f => (f as File).name));
+          console.log(
+            "Media file not found in mediaFiles object:",
+            fullFileName,
+          );
+          console.log(
+            "Available files:",
+            Object.values(mediaFiles).map((f) => (f as File).name),
+          );
         }
       } else if (media.type === "video") {
         const media = tweet.tweet.extended_entities?.media?.[0];
         console.log(media);
 
         const highQualityVariant = media.video_info.variants.find(
-          (variant: VideoVariant) => variant.bitrate === '2176000' && variant.content_type === 'video/mp4'
+          (variant: VideoVariant) =>
+            variant.bitrate === "2176000" &&
+            variant.content_type === "video/mp4",
         );
         const video_info = highQualityVariant.url;
-        const mediaFileName = video_info.split('/').pop()?.split('?')[0];
+        const mediaFileName = video_info.split("/").pop()?.split("?")[0];
         let videoFileName = `${tweet.tweet.id}-${mediaFileName}`;
-        const videoFile = await Object.values(mediaFiles).find((file: any) =>
-          file.name === videoFileName
-        ) as File;
+        const videoFile = (await Object.values(mediaFiles).find(
+          (file: any) => file.name === videoFileName,
+        )) as File;
 
-        const { data: serviceAuth } = await agentC!.com.atproto.server.getServiceAuth(
-          {
+        const { data: serviceAuth } =
+          await agentC!.com.atproto.server.getServiceAuth({
             aud: `did:web:${agentC!.dispatchUrl.host}`,
             lxm: "com.atproto.repo.uploadBlob",
             exp: Date.now() / 1000 + 60 * 30, // 30 minutes
-          },
-        );
+          });
 
         const token = serviceAuth.token;
         const MAX_SINGLE_VIDEO_SIZE = 10 * 1024 * 1024 * 1024; // 10GB max size
 
         // Check file size
         if (videoFile.size > MAX_SINGLE_VIDEO_SIZE) {
-          throw new Error(`File size (${(videoFile.size / (1024 * 1024 * 1024)).toFixed(2)}GB) exceeds maximum allowed size of 10GB`);
+          throw new Error(
+            `File size (${(videoFile.size / (1024 * 1024 * 1024)).toFixed(2)}GB) exceeds maximum allowed size of 10GB`,
+          );
         }
         // Prepare upload URL
         const uploadUrl = new URL(
-          "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo"
-
+          "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo",
         );
         uploadUrl.searchParams.append("did", agentC!.session!.did);
         uploadUrl.searchParams.append("name", videoFileName);
 
-
-
         console.log("Starting upload request...", {
           fileSize: `${(videoFile.size / (1024 * 1024)).toFixed(2)}MB`,
-          fileName: videoFile.name
+          fileName: videoFile.name,
         });
         let uploadResponse: any;
         let jobStatus: any;
@@ -296,17 +313,17 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
               // Log progress percentage
               console.log(
                 "Upload progress:",
-                Math.trunc((bytesUploaded / size) * 100) + "%"
+                Math.trunc((bytesUploaded / size) * 100) + "%",
               );
             },
             flush() {
               console.log("Upload complete ✨");
-            }
+            },
           });
 
           // Create upload URL with parameters
           const uploadUrl = new URL(
-            "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo"
+            "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo",
           );
           uploadUrl.searchParams.append("did", agentC!.session!.did);
           uploadUrl.searchParams.append("name", videoFile.name);
@@ -316,49 +333,52 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
           const uploadStream = fileStream.pipeThrough(progressTrackingStream);
 
           interface ExtendedRequestInit extends RequestInit {
-            duplex: 'half';
+            duplex: "half";
           }
 
           const fetchOptions: ExtendedRequestInit = {
             method: "POST",
             headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'video/mp4',
-              'Content-Length': String(size),
-              'Accept': 'application/json',
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "video/mp4",
+              "Content-Length": String(size),
+              Accept: "application/json",
             },
             body: uploadStream,
-            duplex: 'half',
+            duplex: "half",
           };
           // Perform upload
           uploadResponse = await fetch(uploadUrl.toString(), fetchOptions);
 
           if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
-            throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
+            throw new Error(
+              `Upload failed: ${uploadResponse.status} - ${errorText}`,
+            );
           }
 
-
-          jobStatus = (await uploadResponse.json()) as AppBskyVideoDefs.JobStatus;
-          console.log('Upload successful:', jobStatus);
+          jobStatus =
+            (await uploadResponse.json()) as AppBskyVideoDefs.JobStatus;
+          console.log("Upload successful:", jobStatus);
         } catch (error: any) {
-
-          if (error.message.includes('already_exists')) {
+          if (error.message.includes("already_exists")) {
             // Extract jobId from error message
-            const errorData = JSON.parse(error.message.split(' - ')[1]);
-            console.log('Using existing video jobId:', errorData.jobId);
+            const errorData = JSON.parse(error.message.split(" - ")[1]);
+            console.log("Using existing video jobId:", errorData.jobId);
             jobStatus = {
               jobId: errorData.jobId,
               state: errorData.state,
-              did: errorData.did
+              did: errorData.did,
             } as AppBskyVideoDefs.JobStatus;
           } else {
-            console.error('Upload error:', error);
+            console.error("Upload error:", error);
             throw error;
           }
         }
         if (jobStatus.error) {
-          console.warn(` Video job status: '${jobStatus.error}'. Video will be posted as a link`);
+          console.warn(
+            ` Video job status: '${jobStatus.error}'. Video will be posted as a link`,
+          );
         }
         console.log(" JobId:", jobStatus.jobId);
 
@@ -370,7 +390,8 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
           const { data: status } = await videoAgent.app.bsky.video.getJobStatus(
             { jobId: jobStatus.jobId },
           );
-          console.log("  Status:",
+          console.log(
+            "  Status:",
             status.jobStatus.state,
             status.jobStatus.progress || "",
           );
@@ -394,8 +415,16 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
     processedText = processedText.substring(0, 296) + "...";
   }
 
-  console.log(`Final post will contain ${embeddedImage.length} images and ${embeddedVideo ? 1 : 0} videos`);
-  await postToBluesky(processedText, username, tweet.tweet.created_at, embeddedImage, embeddedVideo);
+  console.log(
+    `Final post will contain ${embeddedImage.length} images and ${embeddedVideo ? 1 : 0} videos`,
+  );
+  await postToBluesky(
+    processedText,
+    username,
+    tweet.tweet.created_at,
+    embeddedImage,
+    embeddedVideo,
+  );
 }
 
 async function resolveShortURL(url: string) {
@@ -419,7 +448,11 @@ async function cleanTweetText(tweetFullText: string): Promise<string> {
     const newUrls = await Promise.all(urls.map(resolveShortURL));
     let j = 0;
     newText = URI.withinString(tweetFullText, (url) => {
-      if (newUrls[j].startsWith('https://t.co/') || newUrls[j].indexOf("/photo/") > 0 || newUrls[j].indexOf("/video/") > 0) {
+      if (
+        newUrls[j].startsWith("https://t.co/") ||
+        newUrls[j].indexOf("/photo/") > 0 ||
+        newUrls[j].indexOf("/video/") > 0
+      ) {
         j++;
         return "";
       }
@@ -427,7 +460,7 @@ async function cleanTweetText(tweetFullText: string): Promise<string> {
     });
   }
   newText = he.decode(newText);
-  console.log("newText", newText)
+  console.log("newText", newText);
   return newText;
 }
 
@@ -440,18 +473,19 @@ async function processMediaFile(file: File, username: string) {
     }
     const buffer = await file.arrayBuffer();
     console.log("buffer ", buffer);
-    const fileType = file.type.split('/').pop();
-    const mimeType = fileType === "png"
-      ? "image/png"
-      : fileType === "jpg" || fileType === "jpeg"
-        ? "image/jpeg"
-        : file.type;
-    if (!mimeType.startsWith('image/')) {
+    const fileType = file.type.split("/").pop();
+    const mimeType =
+      fileType === "png"
+        ? "image/png"
+        : fileType === "jpg" || fileType === "jpeg"
+          ? "image/jpeg"
+          : file.type;
+    if (!mimeType.startsWith("image/")) {
       throw new Error("Unsupported file type. Only images are supported.");
     }
     // Upload to bsky
     const response = await agentC.uploadBlob(buffer, {
-      encoding: mimeType
+      encoding: mimeType,
     });
     console.log("image response ", response);
     // Format the response similar to the embedded image structure
@@ -462,7 +496,7 @@ async function processMediaFile(file: File, username: string) {
         ref: response.data.blob.ref,
         mimeType: response.data.blob.mimeType,
         size: response.data.blob.size,
-      }
+      },
     };
     return embeddedImage;
   } catch (error) {
@@ -471,7 +505,13 @@ async function processMediaFile(file: File, username: string) {
   }
 }
 
-async function postToBluesky(text: string, username: string, created_at: string, embeddedImage: any, embeddedVideo: any) {
+async function postToBluesky(
+  text: string,
+  username: string,
+  created_at: string,
+  embeddedImage: any,
+  embeddedVideo: any,
+) {
   if (!agentC) {
     throw new Error("No agent found");
   }
@@ -500,7 +540,6 @@ async function postToBluesky(text: string, username: string, created_at: string,
           : undefined,
     };
 
-
     const embed = getMergeEmbed(embeddedImage, embeddedVideo);
 
     if (embed && Object.keys(embed).length > 0) {
@@ -526,12 +565,15 @@ async function postToBluesky(text: string, username: string, created_at: string,
   }
 }
 
-export function getMergeEmbed(images: [] = [], embeddedVideo: {} | null = null): {} | null {
+export function getMergeEmbed(
+  images: [] = [],
+  embeddedVideo: {} | null = null,
+): {} | null {
   let mediaData: {} | null = null;
   if (images.length > 0) {
     mediaData = {
       $type: "app.bsky.embed.images",
-      images
+      images,
     };
   } else if (embeddedVideo != null) {
     mediaData = {
@@ -546,7 +588,11 @@ export function getMergeEmbed(images: [] = [], embeddedVideo: {} | null = null):
 // Add helper functions for managing background tasks
 const backgroundTasks = new Map<string, NodeJS.Timeout>();
 
-function registerBackgroundTask(taskId: string, timeoutMs: number = 4 * 60 * 60 * 1000) { // 4 hours default
+function registerBackgroundTask(
+  taskId: string,
+  timeoutMs: number = 4 * 60 * 60 * 1000,
+) {
+  // 4 hours default
   const existingTimeout = backgroundTasks.get(taskId);
   if (existingTimeout) {
     clearTimeout(existingTimeout);
@@ -575,7 +621,7 @@ function cancelImport(importId: string) {
 }
 
 // Add persistence for import state
-chrome.storage.local.get(['activeImports'], (result) => {
+chrome.storage.local.get(["activeImports"], (result) => {
   if (result.activeImports) {
     for (const [importId, state] of Object.entries(result.activeImports)) {
       activeImports.set(importId, state as ImportState);
@@ -588,14 +634,14 @@ chrome.storage.local.get(['activeImports'], (result) => {
 setInterval(() => {
   if (activeImports.size > 0) {
     chrome.storage.local.set({
-      activeImports: Object.fromEntries(activeImports)
+      activeImports: Object.fromEntries(activeImports),
     });
   }
 }, 30000); // Save every 30 seconds
 
 // Handle extension upgrade/reload
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get(['activeImports'], (result) => {
+  chrome.storage.local.get(["activeImports"], (result) => {
     if (result.activeImports) {
       for (const [importId, state] of Object.entries(result.activeImports)) {
         activeImports.set(importId, state as ImportState);
@@ -609,13 +655,13 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.runtime.onSuspend.addListener(() => {
   if (activeImports.size > 0) {
     chrome.storage.local.set({
-      activeImports: Object.fromEntries(activeImports)
+      activeImports: Object.fromEntries(activeImports),
     });
   }
 });
 
 function handleFileTransfer(message: FileTransferMessage) {
-  console.log('Initializing file transfer:', message.fileId);
+  console.log("Initializing file transfer:", message.fileId);
 
   fileStorage.set(message.fileId, {
     chunks: new Map(),
@@ -625,25 +671,29 @@ function handleFileTransfer(message: FileTransferMessage) {
       totalSize: message.totalSize,
       totalChunks: 0,
       receivedChunks: 0,
-      isComplete: false
-    }
+      isComplete: false,
+    },
   });
 
   // Log current storage state
-  console.log('File storage after initialization:',
-    Array.from(fileStorage.keys()));
+  console.log(
+    "File storage after initialization:",
+    Array.from(fileStorage.keys()),
+  );
 }
 
 function handleChunk(message: ChunkMessage) {
   const { id: fileId, chunkIndex, data, totalChunks } = message;
 
   // Debug logging
-  console.log(`Processing chunk ${chunkIndex + 1}/${totalChunks} for file ${fileId}`);
+  console.log(
+    `Processing chunk ${chunkIndex + 1}/${totalChunks} for file ${fileId}`,
+  );
 
   const fileData = fileStorage.get(fileId);
   if (!fileData) {
     console.error(`No file transfer found for ID: ${fileId}`);
-    console.log('Available files:', Array.from(fileStorage.keys()));
+    console.log("Available files:", Array.from(fileStorage.keys()));
     throw new Error(`File transfer not initialized for ID: ${fileId}`);
   }
 
@@ -656,7 +706,9 @@ function handleChunk(message: ChunkMessage) {
   fileData.chunks.set(chunkIndex, data);
   fileData.metadata.receivedChunks++;
 
-  console.log(`Progress for ${fileId}: ${fileData.metadata.receivedChunks}/${totalChunks}`);
+  console.log(
+    `Progress for ${fileId}: ${fileData.metadata.receivedChunks}/${totalChunks}`,
+  );
 
   // Check if all chunks received
   if (fileData.metadata.receivedChunks === totalChunks) {
@@ -667,7 +719,7 @@ function handleChunk(message: ChunkMessage) {
 
 function reassembleFile(fileId: string): File {
   console.log(`Attempting to reassemble file: ${fileId}`);
-  console.log('Available files:', Array.from(fileStorage.keys()));
+  console.log("Available files:", Array.from(fileStorage.keys()));
 
   const fileData = fileStorage.get(fileId);
   if (!fileData) {
@@ -675,8 +727,10 @@ function reassembleFile(fileId: string): File {
   }
 
   if (!fileData.metadata.isComplete) {
-    throw new Error(`File ${fileId} is not completely transferred. ` +
-      `Received ${fileData.metadata.receivedChunks}/${fileData.metadata.totalChunks} chunks`);
+    throw new Error(
+      `File ${fileId} is not completely transferred. ` +
+        `Received ${fileData.metadata.receivedChunks}/${fileData.metadata.totalChunks} chunks`,
+    );
   }
 
   const { chunks, metadata } = fileData;
@@ -696,7 +750,7 @@ function reassembleFile(fileId: string): File {
 
   // Create file
   const file = new File([allData], metadata.fileName, {
-    type: metadata.fileType
+    type: metadata.fileType,
   });
 
   console.log(`Successfully reassembled file ${metadata.fileName}`);
@@ -706,7 +760,6 @@ function reassembleFile(fileId: string): File {
 
   return file;
 }
-
 
 let lastProcessedUpdate: number = 0;
 
@@ -738,12 +791,15 @@ const initializeAgent = async (retryCount = 3, delay = 500) => {
       }
       // If no agent found but more retries left, wait before trying again
       if (i < retryCount - 1) {
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     } catch (error) {
-      console.error(`Error loading initial agent data (attempt ${i + 1}):`, error);
+      console.error(
+        `Error loading initial agent data (attempt ${i + 1}):`,
+        error,
+      );
       if (i < retryCount - 1) {
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }

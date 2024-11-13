@@ -1,15 +1,15 @@
-import React from 'react';
-import { Calendar } from '@/components/ui/calendar';
+import React from "react";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
 
-const DateRangePicker = ({ dateRange, setDateRange }:any) => {
+const DateRangePicker = ({ dateRange, setDateRange }: any) => {
   return (
     <div className="flex flex-col gap-4 mt-4">
       <div className="grid grid-cols-2 gap-4">
@@ -25,7 +25,7 @@ const DateRangePicker = ({ dateRange, setDateRange }:any) => {
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {dateRange.min_date ? (
-                  format(dateRange.min_date, 'PPP')
+                  format(dateRange.min_date, "PPP")
                 ) : (
                   <span>Pick a date</span>
                 )}
@@ -36,9 +36,9 @@ const DateRangePicker = ({ dateRange, setDateRange }:any) => {
                 mode="single"
                 selected={dateRange.min_date}
                 onSelect={(date) =>
-                  setDateRange((prev:any) => ({
+                  setDateRange((prev: any) => ({
                     ...prev,
-                    min_date: date
+                    min_date: date,
                   }))
                 }
                 initialFocus
@@ -59,7 +59,7 @@ const DateRangePicker = ({ dateRange, setDateRange }:any) => {
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {dateRange.max_date ? (
-                  format(dateRange.max_date, 'PPP')
+                  format(dateRange.max_date, "PPP")
                 ) : (
                   <span>Pick a date</span>
                 )}
@@ -70,9 +70,9 @@ const DateRangePicker = ({ dateRange, setDateRange }:any) => {
                 mode="single"
                 selected={dateRange.max_date}
                 onSelect={(date) =>
-                  setDateRange((prev:any) => ({
+                  setDateRange((prev: any) => ({
                     ...prev,
-                    max_date: date
+                    max_date: date,
                   }))
                 }
                 initialFocus
@@ -81,10 +81,12 @@ const DateRangePicker = ({ dateRange, setDateRange }:any) => {
           </Popover>
         </div>
       </div>
-      
+
       <Button
         variant="outline"
-        onClick={() => setDateRange({ min_date: undefined, max_date: undefined })}
+        onClick={() =>
+          setDateRange({ min_date: undefined, max_date: undefined })
+        }
         className="w-full"
       >
         Clear Date Range

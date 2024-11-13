@@ -1,7 +1,7 @@
 //external libraries
 import { Upload } from "lucide-react";
 import { useEffect, useState } from "react";
-
+import { CiCoffeeCup } from "react-icons/ci";
 // ui component
 import { Button } from "@/components/ui/button";
 import DateRangePicker from "@/components/DateRangePicker";
@@ -158,10 +158,22 @@ const RenderStep1: React.FC<Render1Props> = ({
         )}
 
         <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h3 className="font-medium mb-3">Select Date Range</h3>
           <DateRangePicker dateRange={dateRange} setDateRange={setDateRange} />
         </div>
-        <Sync checked={syncXProfile} updateChecked={setSyncXProfile} />
+        <div className="flex justify-between items-center">
+          <Sync checked={syncXProfile} updateChecked={setSyncXProfile} />
+          <div className="flex items-center gap-1">
+            <p className="text-lg">Support Us.</p>
+            <button
+              className="text-3xl hover:text-white hover:bg-yellow-500 p-1 rounded-full h-fit w-fit"
+              onClick={() =>
+                window.open("https://www.buymeacoffee.com/nester", "_blank")
+              }
+            >
+              <CiCoffeeCup />
+            </button>
+          </div>
+        </div>
 
         <Button
           onClick={analyzeTweets}
@@ -176,7 +188,6 @@ const RenderStep1: React.FC<Render1Props> = ({
           Bulk Delete
         </Button>
       )}
-
     </div>
   );
 };

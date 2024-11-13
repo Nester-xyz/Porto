@@ -10,7 +10,13 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["tabs", "activeTab", "windows", "storage", "unlimitedStorage"],
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "windows",
+    "storage",
+    "unlimitedStorage"
+  ],
   "host_permissions": ["https://video.bsky.app/*"],
   "icons": {
     "32": "icon.png"

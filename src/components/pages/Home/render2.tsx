@@ -18,8 +18,14 @@ const RenderStep2: React.FC<Render2Props> = ({
   const [progress, setProgress] = useState(0);
   const [simulate, setSimulate] = useState(false);
 
-  const { fileMap, dateRange, totalTweets, tweetsLocation, validTweets, fileState } =
-    shareableData;
+  const {
+    fileMap,
+    dateRange,
+    totalTweets,
+    tweetsLocation,
+    validTweets,
+    fileState,
+  } = shareableData;
 
   useEffect(() => {
     const handleProgress = (message: any) => {
