@@ -6,9 +6,11 @@ import { ApiDelay, BLUESKY_USERNAME } from "@/lib/constant";
 import { sendFileInChunks } from "@/lib/parse/parse";
 import { Render2Props } from "@/types/render";
 import { useState, useEffect } from "react";
+import { importXProfileToBsky } from "@/components/utils";
 
 const RenderStep2: React.FC<Render2Props> = ({
   setCurrentStep,
+  showXProfile,
   shareableData,
 }) => {
   const { agent } = useLogInContext();
@@ -16,7 +18,7 @@ const RenderStep2: React.FC<Render2Props> = ({
   const [progress, setProgress] = useState(0);
   const [simulate, setSimulate] = useState(false);
 
-  const { fileMap, dateRange, totalTweets, tweetsLocation, validTweets } =
+  const { fileMap, dateRange, totalTweets, tweetsLocation, validTweets, fileState } =
     shareableData;
 
   useEffect(() => {
@@ -41,6 +43,7 @@ const RenderStep2: React.FC<Render2Props> = ({
   }, [progress]);
 
   const tweet_to_bsky = async () => {
+    if (showXProfile) importXProfileToBsky(agent!, fileState);
     if (!agent) {
       console.log("No agent found");
       return;

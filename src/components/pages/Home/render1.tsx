@@ -77,6 +77,7 @@ const RenderStep1: React.FC<Render1Props> = ({
       const validTweets = sortTweetsWithDateRange(tweets, dateRange);
 
       const analysisResults = {
+        fileState: fileState,
         fileMap: fileState.fileMap,
         dateRange: dateRange,
         totalTweets: tweets.length,
@@ -175,13 +176,7 @@ const RenderStep1: React.FC<Render1Props> = ({
           Bulk Delete
         </Button>
       )}
-      <Button
-        onClick={() => importXProfileToBsky(agent!, fileState)}
-        className="w-full"
-        disabled={!isFilePresent("profile.js") || analysisState.isAnalyzing}
-      >
-        Sync X Profile section
-      </Button>
+
     </div>
   );
 };

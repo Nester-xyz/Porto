@@ -20,6 +20,8 @@ export const intialDate = {
 };
 
 export const initialShareableData = {
+  showXprofile: false,
+  fileState: initialFileState,
   fileMap: new Map<string, File>(),
   totalTweets: 0,
   validTweets: 0,
