@@ -1,5 +1,6 @@
 import { DateRange, Tweet } from "@/types/tweets.type";
 import he from "he";
+import AtpAgent from "@atproto/api";
 import URI from "urijs";
 
 export const findFileFromMap = (
@@ -104,4 +105,86 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
 
   newText = he.decode(newText);
   return removeTcoLinks(newText);
+}
+
+
+type BskyPost = {
+  post: {
+    uri: string;
+    // ... other post fields
+  }
+};
+
+type AuthorFeedResponse = {
+  cursor?: string;
+  posts: BskyPost[];
+};
+
+export async function bulkDeleteBskyPost(
+  agent: AtpAgent
+): Promise<{
+  totalPosts: number;
+  deleted: number;
+  failed: Array<{ uri: string; error: Error }>
+}> {
+  const results = {
+    totalPosts: 0,
+    deleted: 0,
+    failed: [] as Array<{ uri: string; error: Error }>
+  };
+
+  try {
+    let cursor: string | undefined = undefined; // Initialize as undefined instead of empty string
+    const limit: number = 50;
+
+    do {
+      // Get batch of posts
+      const { data } = await agent.getAuthorFeed({
+        actor: agent.did!,
+        limit,
+        ...(cursor ? { cursor } : {}) // Only include cursor if it exists
+      });
+
+      if (!data?.feed) {
+        break; // Exit if no feed is returned
+      }
+
+      const { feed } = data;
+      console.log('Current batch of posts:', feed);
+      results.totalPosts += feed.length;
+
+      // Process current batch in smaller chunks
+      const batchSize = 10;
+      for (let i = 0; i < feed.length; i += batchSize) {
+        const batch = feed.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async ({ post }) => {
+            try {
+              await agent.deletePost(post.uri);
+              results.deleted++;
+            } catch (error) {
+              results.failed.push({
+                uri: post.uri,
+                error: error instanceof Error ? error : new Error(String(error))
+              });
+            }
+          })
+        );
+      }
+
+      // Update cursor for next iteration
+      cursor = data.cursor;
+
+      // If no cursor returned, break the loop
+      if (!cursor) {
+        break;
+      }
+
+    } while (true);
+
+    return results;
+  } catch (error) {
+    console.error('Error in bulkDeleteBskyPost:', error);
+    throw error;
+  }
 }

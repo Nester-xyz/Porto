@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import DateRangePicker from "@/components/DateRangePicker";
 import FileFoundCard from "@/components/FileFoundCard";
+import { bulkDeleteBskyPost } from "@/components/utils";
 
 // libraries
 import {
@@ -28,11 +29,13 @@ import {
   initalTweetAnalyzer,
   intialDate,
 } from "@/lib/constant";
+import { useLogInContext } from "@/hooks/LogInContext";
 
 const RenderStep1: React.FC<Render1Props> = ({
   onAnalysisComplete,
   setCurrentStep,
 }) => {
+  const { agent } = useLogInContext();
   const [fileState, setFileState] = useState<TFileState>(initialFileState);
   const [analysisState, setAnalysisState] =
     useState<TTweetAnalyzer>(initalTweetAnalyzer);
@@ -160,6 +163,12 @@ const RenderStep1: React.FC<Render1Props> = ({
           {analysisState.isAnalyzing ? "Analyzing..." : "Analyze Tweets"}
         </Button>
       </div>
+      <Button
+        onClick={() => bulkDeleteBskyPost(agent!)}
+        className="w-full"
+      >
+        Bulk Delete
+      </Button>
     </div>
   );
 };

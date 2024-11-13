@@ -145,21 +145,8 @@ async function handleImportWithFiles(request: {
     // Continue with existing import logic
     const tweetsFileContent = await tweetsFile.text();
     const tweets = parseTweetsFile(tweetsFileContent);
-    // Debug step
-    const targetId = "1626568550931660803"
-    const tweet = tweets.find(t => t.tweet.id === targetId);
-    if (!tweet) {
-      console.log(`Tweet with ID ${targetId} not found`);
-      return null;
-    }
 
-    // 1626568550931660803-91_NVpRYBj3a_sls.mp4
-
-    console.log("b tweets", tweets);
-
-    console.log("b typeoftweets", typeof (tweets))
     const filteredTweets = sortTweetsWithDateRange(tweets, dateRange);
-    console.log("filtered tweets", filteredTweets.length)
 
     // Update state with total tweets
     const state = activeImports.get(importId)!;
@@ -411,10 +398,6 @@ async function processTweet(tweet: any, mediaFiles: any, username: string) {
   await postToBluesky(processedText, username, tweet.tweet.created_at, embeddedImage, embeddedVideo);
 }
 
-
-
-
-
 async function resolveShortURL(url: string) {
   try {
     const response = await fetch(url, { method: "HEAD", redirect: "follow" });
@@ -436,7 +419,7 @@ async function cleanTweetText(tweetFullText: string): Promise<string> {
     const newUrls = await Promise.all(urls.map(resolveShortURL));
     let j = 0;
     newText = URI.withinString(tweetFullText, (url) => {
-      if (newUrls[j].indexOf("/photo/") > 0 || newUrls[j].indexOf("/video/") > 0) {
+      if (newUrls[j].startsWith('https://t.co/') || newUrls[j].indexOf("/photo/") > 0 || newUrls[j].indexOf("/video/") > 0) {
         j++;
         return "";
       }
@@ -444,6 +427,7 @@ async function cleanTweetText(tweetFullText: string): Promise<string> {
     });
   }
   newText = he.decode(newText);
+  console.log("newText", newText)
   return newText;
 }
 
@@ -491,12 +475,7 @@ async function postToBluesky(text: string, username: string, created_at: string,
   if (!agentC) {
     throw new Error("No agent found");
   }
-
-  console.log("agent did ", agentC.did)
-  console.log("agent ", agentC)
-  console.log(created_at);
   try {
-    console.log("agent account id ", agentC.accountDid);
     let postText = text;
     if (!simulate) {
       postText = await cleanTweetText(text);
@@ -530,11 +509,12 @@ async function postToBluesky(text: string, username: string, created_at: string,
 
     if (!simulate) {
       await new Promise((resolve) => setTimeout(resolve, ApiDelay));
-      console.log("post agent", agentC, "post record", postRecord);
+      console.log(postRecord);
       const recordData = await agentC.post(postRecord);
 
       const postRkey = recordData.uri.split("/").pop();
       if (postRkey) {
+        console.log(recordData);
         const postUri = `https://bsky.app/profile/${username}.bsky.social/post/${postRkey}`;
         console.log("Bluesky post created:", postUri);
         return postUri;
@@ -594,30 +574,6 @@ function cancelImport(importId: string) {
   }
 }
 
-// Add error recovery and retry logic
-async function retryOperation<T>(
-  operation: () => Promise<T>,
-  maxRetries: number = 3,
-  delayMs: number = 1000
-): Promise<T> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error: any) {
-      lastError = error;
-      console.warn(`Attempt ${attempt} failed:`, error);
-
-      if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
-      }
-    }
-  }
-
-  throw lastError || new Error("Operation failed after retries");
-}
-
 // Add persistence for import state
 chrome.storage.local.get(['activeImports'], (result) => {
   if (result.activeImports) {
@@ -657,14 +613,6 @@ chrome.runtime.onSuspend.addListener(() => {
     });
   }
 });
-const fileChunks: Record<string, {
-  chunks: (number[])[];
-  metadata: {
-    fileName: string;
-    fileType: string;
-    totalSize: number;
-  };
-}> = {};
 
 function handleFileTransfer(message: FileTransferMessage) {
   console.log('Initializing file transfer:', message.fileId);
