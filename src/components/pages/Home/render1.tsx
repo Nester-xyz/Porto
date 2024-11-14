@@ -30,7 +30,7 @@ import {
   intialDate,
 } from "@/lib/constant";
 import { useLogInContext } from "@/hooks/LogInContext";
-import Sync from "./sync";
+import Sync from "@/components/pageComponent/render1/sync";
 
 const RenderStep1: React.FC<Render1Props> = ({
   onAnalysisComplete,
@@ -157,22 +157,11 @@ const RenderStep1: React.FC<Render1Props> = ({
           </div>
         )}
 
-        <div className="bg-white p-4 rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm">
           <DateRangePicker dateRange={dateRange} setDateRange={setDateRange} />
         </div>
         <div className="flex justify-between items-center">
           <Sync checked={syncXProfile} updateChecked={setSyncXProfile} />
-          <div className="flex items-center gap-1">
-            <p className="text-lg">Support Us.</p>
-            <button
-              className="text-3xl hover:text-white hover:bg-yellow-500 p-1 rounded-full h-fit w-fit"
-              onClick={() =>
-                window.open("https://www.buymeacoffee.com/nester", "_blank")
-              }
-            >
-              <CiCoffeeCup />
-            </button>
-          </div>
         </div>
 
         <Button

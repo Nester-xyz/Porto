@@ -127,8 +127,10 @@ const RenderStep2: React.FC<Render2Props> = ({
         <div className="space-y-4 w-full">
           {progress === 0 && isProcessing && (
             <Badge variant="destructive" className="w-full py-1 px-2">
-              <u>Do not</u>close this window. Passing Media Chunks into Service
-              worker.
+              <div>
+                <u>Do not</u>&nbsp;close this window. Passing Media Chunks into
+                Service worker.
+              </div>
             </Badge>
           )}
           {isProcessing && (
