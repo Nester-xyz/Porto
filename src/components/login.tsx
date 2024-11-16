@@ -9,7 +9,6 @@ import { BsFillInfoCircleFill } from "react-icons/bs";
 import { CgDanger } from "react-icons/cg";
 import { useLogInContext } from "@/hooks/LogInContext";
 import Home from "./pages/Home/home";
-import Page from "./pages/Home/page";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -49,7 +48,7 @@ const Login = () => {
   const appPasswordRoute = () => {
     window.open(
       "https://github.com/bluesky-social/atproto-ecosystem/blob/main/app-passwords.md",
-      "_blank",
+      "_blank"
     );
   };
 
@@ -77,7 +76,13 @@ const Login = () => {
           <CardTitle className="text-center text-4xl">Login</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onClick();
+            }}
+          >
             {/* Error */}
             <div className="flex flex-col gap-1">
               {error && (
@@ -146,12 +151,12 @@ const Login = () => {
             {/* Login Button */}
             <Button
               className="w-full mt-4"
-              onClick={onClick}
+              type="submit"
               disabled={!userName || !password} // Disables button if fields are empty
             >
               Login
             </Button>
-          </div>
+          </form>
         </CardContent>
       </Card>
     </div>
