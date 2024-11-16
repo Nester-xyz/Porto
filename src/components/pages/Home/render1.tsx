@@ -145,8 +145,7 @@ const RenderStep1: React.FC<Render1Props> = ({
           </div>
         )}
 
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h3 className="font-medium mb-3">Select Date Range</h3>
+        <div className="bg-white rounded-lg shadow-sm">
           <DateRangePicker dateRange={dateRange} setDateRange={setDateRange} />
         </div>
 
