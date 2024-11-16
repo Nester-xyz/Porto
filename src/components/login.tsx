@@ -16,12 +16,14 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [showToolTip, setShowToolTip] = useState(false);
   const [error, setError] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const { agent, loggedIn, setLoggedIn } = useLogInContext();
 
   useEffect(() => {
     console.log("useeffect", loggedIn);
   }, [loggedIn]);
+
   const onLogin = async () => {
     if (!agent) {
       console.log("no agent", agent);
@@ -29,6 +31,8 @@ const Login = () => {
     }
 
     console.log(agent);
+    setIsLoading(true);
+
     try {
       const user = await agent.login({
         identifier: userName.toString(),
@@ -42,6 +46,7 @@ const Login = () => {
     } catch (error) {
       console.log("Error logging in:", error);
       setError("Invalid username or password");
+      setIsLoading(false);
     }
   };
 
@@ -152,7 +157,7 @@ const Login = () => {
             <Button
               className="w-full mt-4"
               type="submit"
-              disabled={!userName || !password} // Disables button if fields are empty
+              disabled={!userName || !password || isLoading} // Disables button if fields are empty
             >
               Login
             </Button>
