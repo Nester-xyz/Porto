@@ -102,7 +102,7 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
     const newUrls = await Promise.all(urls.map(resolveShortURL));
     let j = 0;
     newText = URI.withinString(tweetFullText, (url) => {
-      if (newUrls[j].indexOf("/photo/") > 0) {
+      if (newUrls[j].startsWith('https://t.co/') || newUrls[j].indexOf("/photo/") > 0 || newUrls[j].indexOf("/video/") > 0) {
         j++;
         return "";
       }

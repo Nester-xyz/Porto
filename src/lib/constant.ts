@@ -15,8 +15,8 @@ export const initalTweetAnalyzer = {
 };
 
 export const intialDate = {
-  min_date: new Date(80, 0, 1),
-  max_date: new Date(),
+  min_date: new Date(2023, 1, 15),
+  max_date: new Date(2023, 1, 20),
 };
 
 export const initialShareableData = {
