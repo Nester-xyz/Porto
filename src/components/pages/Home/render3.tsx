@@ -48,14 +48,9 @@ const RenderStep3: React.FC<Render3Props> = ({
           </p>
           <Button
             className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg transform transition hover:scale-105"
-            onClick={() =>
-              window.open(
-                "https://www.paypal.com/donate/?hosted_button_id=PFD7AXJMPSDYJ",
-                "_blank",
-              )
-            }
+            onClick={() => window.open("https://ko-fi.com/nesterdev", "_blank")}
           >
-            Donate
+            Donate us on Ko-Fi
           </Button>
         </div>
       </Card>
