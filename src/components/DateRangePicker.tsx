@@ -1,45 +1,54 @@
-import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TDateRange } from "@/types/render";
+import { isValid } from "date-fns";
+import React, { useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { isValid } from "date-fns";
 
-const DateRangePicker = ({ dateRange, setDateRange }: any) => {
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+const DateRangePicker = ({
+  dateRange,
+  setDateRange,
+}: {
+  dateRange: TDateRange;
+  setDateRange: React.Dispatch<React.SetStateAction<TDateRange>>;
+}) => {
+  const [startDate, setStartDate] = useState(dateRange.min_date ?? new Date());
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+
+  useEffect(() => {
+    if (startDate && endDate) {
+      setDateRange({
+        min_date: startDate,
+        max_date: endDate,
+      });
+    }
+  }, [startDate, endDate, setDateRange]);
 
   return (
     <div className="flex flex-col gap-4 mt-4">
-      <DatePicker
-        selected={startDate}
-        onChange={(dates) => {
-          const [start, end] = dates;
-          if (start) {
-            setStartDate(start);
-          }
-          setEndDate(end ?? undefined);
+      <div className="flex gap-2 items-center">
+        <div className="text-lg">Date Range: </div>
+        <DatePicker
+          selected={startDate}
+          onChange={(dates: [Date | null, Date | null]) => {
+            const [start, end] = dates;
 
-          if (end) {
-            setDateRange((prev: any) => ({
-              ...prev,
-              max_date: end,
-              min_date: start,
-            }));
+            if (start) setStartDate(start);
+            setEndDate(end ?? undefined);
+          }}
+          maxDate={new Date()}
+          startDate={startDate}
+          endDate={endDate}
+          selectsRange
+          customInput={
+            <Input
+              value={`${startDate.toLocaleDateString()}${isValid(endDate) && endDate ? ` - ${endDate.toLocaleDateString()}` : ""}`}
+            />
           }
-        }}
-        maxDate={new Date()}
-        startDate={startDate}
-        endDate={endDate}
-        selectsRange
-        customInput={
-          <Input
-            value={`asdasdfasdfasd:::${startDate.toLocaleDateString()}${isValid(endDate) && endDate ? ` - ${endDate.toLocaleDateString()}` : ""}`}
-          />
-        }
-        fixedHeight
-      />
-
+          fixedHeight
+        />
+      </div>
       <Button
         variant="outline"
         onClick={() => {

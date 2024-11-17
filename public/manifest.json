@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Porto - port your Tweets to Bluesky",
-  "version": "1.2.1",
+  "name": "Porto - Import your Tweets to Bluesky",
+  "version": "1.2.2",
   "description": "A chrome extension to port all your twitter/X tweets to bluesky at a click of a button",
   "action": {
     "default_icon": "icon.png"

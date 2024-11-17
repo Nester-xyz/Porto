@@ -22,7 +22,7 @@ const Home = () => {
         <div className="mb-8">
           <Steps currentStep={currentStep} />
           <h1 className="text-2xl font-bold text-center text-blue-600">
-            Port Twitter posts to Bluesky
+            Import Twitter posts to Bluesky
           </h1>
         </div>
 
