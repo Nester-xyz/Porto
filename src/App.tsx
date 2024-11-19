@@ -1,4 +1,4 @@
-import Login from "./components/login";
+import Login from "./components/pages/login/Login";
 import { LogInProvider } from "./hooks/LogInContext";
 
 const App = () => {
