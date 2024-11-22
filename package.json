@@ -8,7 +8,8 @@
     "build": "vite build",
     "watch": "vite build --watch",
     "preview": "vite preview",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "vitest"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.278",
@@ -25,7 +26,8 @@
     "typescript": "^5.6.3",
     "vite": "^5.4.9",
     "vite-plugin-chrome-extension": "^0.0.7",
-    "vite-plugin-html": "^3.2.2"
+    "vite-plugin-html": "^3.2.2",
+    "vitest": "^2.1.5"
   },
   "dependencies": {
     "@atproto/api": "^0.13.12",
@@ -37,7 +39,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "dotenv": "^16.4.5",
-    "eslint": "^9.13.0",
+    "eslint": "^9.15.0",
     "follow-redirects": "^1.15.9",
     "he": "^1.2.0",
     "lucide-react": "^0.453.0",

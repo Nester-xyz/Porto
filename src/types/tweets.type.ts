@@ -1,4 +1,4 @@
-interface Entities {
+export interface Entities {
   urls: any[];
   symbols: any[];
   hashtags: any[];
@@ -9,7 +9,7 @@ export interface Tweet {
     created_at: string;
     id: string;
     full_text: string;
-    in_reply_to_screen_name: string | null;
+    in_reply_to_screen_name?: string;
     entities: Entities;
     extended_entities?: {
       media: {

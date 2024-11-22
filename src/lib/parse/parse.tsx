@@ -17,18 +17,14 @@ export const findFileFromMap = (
 };
 
 export const parseTweetsFile = (content: string): Tweet[] => {
-  // console.log(content, "this is content");
   try {
-    return JSON.parse(content);
-  } catch {
-    try {
-      const jsonContent = content
-        .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, "")
-        .replace(/;$/, "");
-      return JSON.parse(jsonContent);
-    } catch (error) {
-      throw new Error(`Failed to parse tweets file: ${error}`);
-    }
+    const jsonContent = content
+      .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, "")
+      .replace(/;$/, "")
+      .trim();
+    return JSON.parse(jsonContent);
+  } catch (error) {
+    throw new Error(`Failed to parse tweets file: ${error}`);
   }
 };
 
@@ -102,7 +98,11 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
     const newUrls = await Promise.all(urls.map(resolveShortURL));
     let j = 0;
     newText = URI.withinString(tweetFullText, (url) => {
-      if (newUrls[j].startsWith('https://t.co/') || newUrls[j].indexOf("/photo/") > 0 || newUrls[j].indexOf("/video/") > 0) {
+      if (
+        newUrls[j].startsWith("https://t.co/") ||
+        newUrls[j].indexOf("/photo/") > 0 ||
+        newUrls[j].indexOf("/video/") > 0
+      ) {
         j++;
         return "";
       }
