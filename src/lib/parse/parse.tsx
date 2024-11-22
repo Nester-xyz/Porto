@@ -1,10 +1,10 @@
 import { TDateRange } from "@/types/render";
-import { Tweet } from "@/types/tweets.type";
+import { Tweet } from "@/types/tweets";
 import he from "he";
 import URI from "urijs";
 
 export const findFileFromMap = (
-  fileMap: Map<String, File>,
+  fileMap: Map<string, File>,
   fileName: string,
 ): File | null => {
   if (!fileMap || fileMap.size === 0) return null;
@@ -34,7 +34,7 @@ export const isQuote = (tweets: Tweet[], id: string) => {
   const tweet = tweets.find((tweet) => tweet.tweet.id === id);
   if (!tweet) throw new Error(`Tweet with id ${id} not found`);
 
-  const urls = tweet.tweet.entities.urls;
+  const urls = tweet.tweet.entities!.urls;
   if (urls.length < 0) return false;
 
   const isQuoted = urls.find((url) => twitterUrlRegex.test(url.expanded_url));
@@ -97,7 +97,7 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
   if (urls.length > 0) {
     const newUrls = await Promise.all(urls.map(resolveShortURL));
     let j = 0;
-    newText = URI.withinString(tweetFullText, (url) => {
+    newText = URI.withinString(tweetFullText, (_) => {
       if (
         newUrls[j].startsWith("https://t.co/") ||
         newUrls[j].indexOf("/photo/") > 0 ||

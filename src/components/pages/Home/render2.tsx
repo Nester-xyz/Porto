@@ -40,32 +40,32 @@ const RenderStep2: React.FC<Render2Props> = ({
     }
     setIsProcessing(true);
     setProgress(0);
-  
+
     try {
       const tweetsFile = fileMap.get(tweetsLocation!);
       if (!tweetsFile) throw new Error(`Tweets file not found at ${tweetsLocation}`);
-  
+
       const tweetsFileContent = await tweetsFile.text();
       const tweets = parseTweetsFile(tweetsFileContent);
-  
+
       if (!Array.isArray(tweets)) throw new Error("Parsed content is not an array");
-  
+
       let importedTweet = 0;
-  
+
       const sortedTweets = sortTweetsWithDateRange(tweets, dateRange);
-  
+
       for (const [index, { tweet }] of sortedTweets.entries()) {
         try {
           setProgress(Math.round((index / sortedTweets.length) * 100));
           const tweetDate = new Date(tweet.created_at);
           const tweet_createdAt = tweetDate.toISOString();
-  
+
           if (!isPostValid(tweet) || isQuote(tweets, tweet.id)) continue;
-  
+
           let embeddedImage = [] as any;
           let embeddedVideo: BlobRef | undefined = undefined;
           let hasVideo = false;
-  
+
           // Process media for embedding
           if (tweet.extended_entities?.media) {
             for (const media of tweet.extended_entities.media) {
@@ -75,22 +75,22 @@ const RenderStep2: React.FC<Render2Props> = ({
                   fileType === "png"
                     ? "image/png"
                     : fileType === "jpg"
-                    ? "image/jpeg"
-                    : "";
-  
+                      ? "image/jpeg"
+                      : "";
+
                 if (!mimeType) continue;
                 if (embeddedImage.length >= 4) break;
-  
+
                 const mediaFilename = `${mediaLocation}/${tweet.id}-${media.media_url.split("/").pop()}`;
                 const imageFile = fileMap.get(mediaFilename);
-  
+
                 if (imageFile) {
                   const imageBuffer = await imageFile.arrayBuffer();
                   if (!simulate) {
                     const blobRecord = await agent.uploadBlob(imageBuffer, {
                       encoding: mimeType,
                     });
-  
+
                     embeddedImage.push({
                       alt: "",
                       image: {
@@ -116,19 +116,19 @@ const RenderStep2: React.FC<Render2Props> = ({
           console.log(`Final post will contain ${embeddedImage.length} images and ${embeddedVideo ? 1 : 0} videos`);
           let postText = tweet.full_text;
           const urls = tweet.entities?.urls?.map((url) => url.display_url) || [];
-  
+
           if (!simulate) {
             postText = await cleanTweetText(tweet.full_text);
             if (postText.length > 300) postText = postText.substring(0, 296) + "...";
           }
-  
+
           if (urls.length > 0) postText += `\n\n${urls.join(" ")}`;
-  
+
           const rt = new RichText({ text: postText });
           await rt.detectFacets(agent);
-  
+
           if (embeddedImage.length > 1) console.log("The embedded images are:", embeddedImage);
-  
+
           const postRecord = {
             $type: "app.bsky.feed.post",
             text: rt.text,
@@ -139,12 +139,12 @@ const RenderStep2: React.FC<Render2Props> = ({
               images: embeddedImage,
             },
           };
-  
+
           console.log("This is the post record payload", postRecord);
-  
+
           const embed = getMergeEmbed(embeddedImage, embeddedVideo);
           if (embed && Object.keys(embed).length > 0) Object.assign(postRecord, { embed });
-  
+
           if (!simulate) {
             await new Promise((resolve) => setTimeout(resolve, ApiDelay));
             const recordData = await agent.post(postRecord);
@@ -209,7 +209,7 @@ const RenderStep2: React.FC<Render2Props> = ({
             <Button
               onClick={() => {
                 setSimulate(false);
-               tweet_to_bsky()
+                tweet_to_bsky()
               }}
               className="flex-1"
               disabled={isProcessing}

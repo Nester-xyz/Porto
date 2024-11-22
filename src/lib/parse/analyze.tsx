@@ -1,5 +1,5 @@
 import { TDateRange } from "@/types/render";
-import { Tweet } from "@/types/tweets.type";
+import { Tweet } from "@/types/tweets";
 
 export const isQuote = (tweets: Tweet[], id: string) => {
   const twitterUrlRegex = /^https:\/\/twitter\.com\//;

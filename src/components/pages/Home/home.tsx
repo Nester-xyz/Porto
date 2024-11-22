@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { SiTicktick } from "react-icons/si";
 import { initialShareableData } from "@/lib/constant";
 import RenderStep1 from "./render1";
 import { shareableData } from "@/types/render";

@@ -107,7 +107,7 @@ const RenderStep1: React.FC<Render1Props> = ({
       tweetsLocation: tweetsFile.webkitRelativePath,
       mediaLocation: `${parentFolder}/tweets_media`,
     }));
-  }, [fileState.fileMap]);
+  }, [fileState.fileMap, findFile]);
 
   return (
     <div className="space-y-6">

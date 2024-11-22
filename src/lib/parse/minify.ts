@@ -1,23 +1,27 @@
-import { Entities } from "@/types/tweets.type";
-import { Tweet } from "@/types/tweets.type";
+import { Tweet } from "@/types/tweets";
 
-// MinifyTweet Function
-export const MinifyTweet = (fields: any[]): Tweet[] => {
-  const validTweets: Tweet[] = fields.filter((field: Tweet) => {
-    field.tweet.id === "1";
-  });
-  // .map((item) => {
-  //   return {
-  //     tweet: {
-  //       id: item.id as string,
-  //       created_at: item.created_at as string,
-  //       entities: item.entities as Entities,
-  //       full_text: item.full_text as string,
-  //       in_reply_to_screen_name: item.in_reply_to_screen_name,
-  //       extended_entities: item.extended_entities as any,
-  //     },
-  //   };
-  // });
+export const MinifyTweet = (fields: unknown[]): Tweet[] => {
+  const validTweets = fields
+    .filter((field): field is { tweet: Tweet["tweet"] } => {
+      return (
+        typeof field === "object" &&
+        field !== null &&
+        "tweet" in field &&
+        typeof (field as { tweet: Tweet["tweet"] }).tweet.id === "string"
+      );
+    })
+    .map(({ tweet }) => {
+      return {
+        tweet: {
+          id: tweet.id,
+          created_at: tweet.created_at,
+          entities: tweet.entities,
+          full_text: tweet.full_text,
+          in_reply_to_screen_name: tweet.in_reply_to_screen_name,
+          extended_entities: tweet.extended_entities,
+        },
+      };
+    });
 
   return validTweets;
 };

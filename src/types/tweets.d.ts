@@ -1,7 +1,5 @@
 export interface Entities {
-  urls: any[];
-  symbols: any[];
-  hashtags: any[];
+  urls: unknown[];
 }
 
 export interface Tweet {
@@ -10,7 +8,7 @@ export interface Tweet {
     id: string;
     full_text: string;
     in_reply_to_screen_name?: string;
-    entities: Entities;
+    entities?: Entities;
     extended_entities?: {
       media: {
         type: string;
@@ -21,6 +19,6 @@ export interface Tweet {
 }
 
 export type TcheckFile = (
-  fileMap: Map<String, File>,
+  fileMap: Map<string, File>,
   fileName: string,
 ) => boolean;

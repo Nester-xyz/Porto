@@ -15,7 +15,6 @@ const MOCKDATA = `window.YTD.tweets.part0 = [
         }
       ],
       "urls": [],
-      "symbols": [],
       "hashtags": []
     },
     "id_str": "12312313123",
@@ -41,7 +40,6 @@ const OUTPUT = [
           },
         ],
         urls: [],
-        symbols: [],
         hashtags: [],
       },
       id_str: "12312313123",
