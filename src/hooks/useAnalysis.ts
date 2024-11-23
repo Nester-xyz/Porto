@@ -10,6 +10,7 @@ export const useAnalysis = (fileState: TFileState, dateRange: TDateRange) => {
   const [validTweets, setValidTweets] = useState<Tweet[]>();
 
   const checkFile = useCallback(() => {
+    if (!fileState.tweetsLocation) return null;
     const tweetsFile = fileState.fileMap.get(fileState.tweetsLocation!);
     if (!tweetsFile)
       throw new Error(`Tweets file not found at ${fileState.tweetsLocation}`);
@@ -17,9 +18,9 @@ export const useAnalysis = (fileState: TFileState, dateRange: TDateRange) => {
   }, [fileState]);
 
   const analyzeTweets = useCallback(async () => {
-    setAnalysisProgress(true);
-
     if (!tweetsFile) return null;
+
+    setAnalysisProgress(true);
     const { tweets, validTweets } = await processTweetsData(
       tweetsFile,
       dateRange,
@@ -31,11 +32,9 @@ export const useAnalysis = (fileState: TFileState, dateRange: TDateRange) => {
   }, [dateRange, tweetsFile]);
 
   useEffect(() => {
-    if (fileState.tweetsLocation && fileState.fileMap.size) {
-      checkFile();
-      analyzeTweets();
-    }
-  }, [fileState, checkFile, analyzeTweets]);
+    checkFile();
+    analyzeTweets();
+  }, [checkFile, analyzeTweets]);
 
   return {
     analysisProgress,

@@ -47,7 +47,6 @@ export const isPostValid = (tweet: Tweet["tweet"]) => {
     tweet.full_text.startsWith("@") ||
     tweet.full_text.startsWith("RT ")
   ) {
-    console.log("skipped", tweet.full_text);
     return false;
   }
   return true;

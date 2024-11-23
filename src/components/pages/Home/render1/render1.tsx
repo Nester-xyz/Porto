@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import DateRangePicker from "@/components/DateRangePicker";
 import FileFoundCard from "@/components/FileFoundCard";
 import { Render1Props, TDateRange } from "@/types/render";
-import { initialFileState, intialDate } from "@/lib/constant";
+import { initialFileState, intialDate, TWEETS_FILENAME } from "@/lib/constant";
 import FileUpload from "./fileUpload";
 import { UseFileUpload } from "@/hooks/useFileUpload";
 import { useAnalysis } from "@/hooks/useAnalysis";
@@ -14,7 +14,7 @@ const RenderStep1: React.FC<Render1Props> = ({
 }) => {
   const [dateRange, setDateRange] = useState<TDateRange>(intialDate);
 
-  const { fileState, findFile, handleFileUpload, isFilePresent, setFileState } =
+  const { fileState, handleFileUpload, isFilePresent } =
     UseFileUpload(initialFileState);
   const { analysisProgress, tweets, validTweets } = useAnalysis(
     fileState,
@@ -39,24 +39,6 @@ const RenderStep1: React.FC<Render1Props> = ({
     }
   };
 
-  useEffect(() => {
-    if (!fileState.fileMap.size) return;
-
-    const tweetsFile = findFile("tweets.js");
-    if (!tweetsFile) return;
-
-    const parentFolder = tweetsFile.webkitRelativePath
-      .split("/")
-      .slice(0, -1)
-      .join("/");
-
-    setFileState((prev) => ({
-      ...prev,
-      tweetsLocation: tweetsFile.webkitRelativePath,
-      mediaLocation: `${parentFolder}/tweets_media`,
-    }));
-  }, [fileState.fileMap, findFile, fileState, setFileState]);
-
   return (
     <div className="space-y-6">
       <div className="space-y-6">
@@ -69,7 +51,7 @@ const RenderStep1: React.FC<Render1Props> = ({
             </p>
             <FileFoundCard
               cardName="tweets.js"
-              found={isFilePresent("tweets.js")}
+              found={isFilePresent(TWEETS_FILENAME)}
             />
           </div>
         )}

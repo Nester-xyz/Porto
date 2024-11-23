@@ -46,7 +46,7 @@ export const UseFileUpload = (initialFileState: TFileState) => {
       tweetsLocation: tweetsFile.webkitRelativePath,
       mediaLocation: `${parentFolder}/tweets_media`,
     }));
-  }, [fileState.fileMap, findFile, fileState, setFileState]);
+  }, [fileState.fileMap, findFile, setFileState]);
 
   return {
     fileState,
