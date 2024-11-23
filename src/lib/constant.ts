@@ -1,5 +1,7 @@
 export const ApiDelay = 2500;
 export const BLUESKY_USERNAME = localStorage.getItem("handle")?.split(".")[0];
+export const TWEETS_FILENAME = "tweets.js";
+export const TWEETS_MEDIA_FOLDER = "tweets_media";
 
 export const initialFileState = {
   files: null as FileList | null,

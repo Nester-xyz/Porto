@@ -1,92 +1,41 @@
-//external libraries
 import { useEffect, useState } from "react";
-
-// ui component
 import { Button } from "@/components/ui/button";
 import DateRangePicker from "@/components/DateRangePicker";
 import FileFoundCard from "@/components/FileFoundCard";
-
-// libraries
-import {
-  findFileFromMap,
-  parseTweetsFile,
-  sortTweetsWithDateRange,
-} from "@/lib/parse/parse";
-
-// types
-import {
-  TFileState,
-  Render1Props,
-  TDateRange,
-  TTweetAnalyzer,
-} from "@/types/render";
-
-// initial state
-import {
-  initialFileState,
-  initalTweetAnalyzer,
-  intialDate,
-} from "@/lib/constant";
+import { Render1Props, TDateRange } from "@/types/render";
+import { initialFileState, intialDate } from "@/lib/constant";
 import FileUpload from "./fileUpload";
+import { UseFileUpload } from "@/hooks/useFileUpload";
+import { useAnalysis } from "@/hooks/useAnalysis";
 
 const RenderStep1: React.FC<Render1Props> = ({
   onAnalysisComplete,
   setCurrentStep,
 }) => {
-  const [fileState, setFileState] = useState<TFileState>(initialFileState);
-  const [analysisState, setAnalysisState] =
-    useState<TTweetAnalyzer>(initalTweetAnalyzer);
   const [dateRange, setDateRange] = useState<TDateRange>(intialDate);
 
-  const handleFileUpload = (files: FileList | null) => {
-    if (!files) return;
-
-    setFileState((prev) => ({
-      ...prev,
-      files,
-      fileMap: new Map(
-        Array.from(files).map((file) => [file.webkitRelativePath, file]),
-      ),
-    }));
-  };
-
-  const findFile = (fileName: string) =>
-    findFileFromMap(fileState.fileMap, fileName);
-  const isFilePresent = (fileName: string) => !!findFile(fileName);
+  const { fileState, findFile, handleFileUpload, isFilePresent, setFileState } =
+    UseFileUpload(initialFileState);
+  const { analysisProgress, tweets, validTweets } = useAnalysis(
+    fileState,
+    dateRange,
+  );
 
   const analyzeTweets = async () => {
-    setAnalysisState((prev) => ({ ...prev, isAnalyzing: true }));
-
     try {
-      const tweetsFile = fileState.fileMap.get(fileState.tweetsLocation!);
-      if (!tweetsFile)
-        throw new Error(`Tweets file not found at ${fileState.tweetsLocation}`);
-
-      const tweetsFileContent = await tweetsFile.text();
-      const tweets = parseTweetsFile(tweetsFileContent);
-      const validTweets = sortTweetsWithDateRange(tweets, dateRange);
-
       const analysisResults = {
         fileMap: fileState.fileMap,
         dateRange: dateRange,
-        totalTweets: tweets.length,
-        validTweets: validTweets.length,
+        totalTweets: tweets?.length ?? 0,
+        validTweets: validTweets?.length ?? 0,
         tweetsLocation: fileState.tweetsLocation!,
         mediaLocation: fileState.mediaLocation!,
       };
-
-      setAnalysisState((prev) => ({
-        ...prev,
-        totalTweets: tweets.length,
-        validTweets: validTweets.length,
-      }));
 
       setCurrentStep(2);
       onAnalysisComplete(analysisResults);
     } catch (error) {
       console.error("Error analyzing tweets:", error);
-    } finally {
-      setAnalysisState((prev) => ({ ...prev, isAnalyzing: false }));
     }
   };
 
@@ -106,7 +55,7 @@ const RenderStep1: React.FC<Render1Props> = ({
       tweetsLocation: tweetsFile.webkitRelativePath,
       mediaLocation: `${parentFolder}/tweets_media`,
     }));
-  }, [fileState.fileMap]);
+  }, [fileState.fileMap, findFile, fileState, setFileState]);
 
   return (
     <div className="space-y-6">
@@ -132,9 +81,9 @@ const RenderStep1: React.FC<Render1Props> = ({
         <Button
           onClick={analyzeTweets}
           className="w-full"
-          disabled={!isFilePresent("tweets.js") || analysisState.isAnalyzing}
+          disabled={!isFilePresent("tweets.js") || analysisProgress}
         >
-          {analysisState.isAnalyzing ? "Analyzing..." : "Analyze Tweets"}
+          {analysisProgress ? "Analyzing..." : "Analyze Tweets"}
         </Button>
       </div>
     </div>

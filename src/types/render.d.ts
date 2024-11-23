@@ -30,12 +30,6 @@ export type TFileState = {
   mediaLocation: string | null;
 };
 
-export type TTweetAnalyzer = {
-  isAnalyzing: boolean;
-  totalTweets: number;
-  validTweets: number;
-};
-
 export interface TDateRange {
   min_date: Date | undefined;
   max_date: Date | undefined;
