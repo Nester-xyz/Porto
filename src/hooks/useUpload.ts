@@ -13,6 +13,13 @@ export const filePassableType = (fileType: string = ""): string => {
   if (fileType === "jpg") return "image/jpeg";
   return "";
 };
+
+const cannotPost = (
+  singleTweet: Tweet["tweet"],
+  tweetsArray: Tweet[],
+): boolean =>
+  !isPostValid(singleTweet) || isQuote(tweetsArray, singleTweet.id);
+
 export const useUpload = ({
   shareableData,
 }: {
@@ -24,12 +31,6 @@ export const useUpload = ({
   const simulate = useMemo(() => true, []);
 
   const { fileMap, dateRange, mediaLocation, tweetsLocation } = shareableData;
-
-  const cannotPost = (
-    singleTweet: Tweet["tweet"],
-    tweetsArray: Tweet[],
-  ): boolean =>
-    !isPostValid(singleTweet) || isQuote(tweetsArray, singleTweet.id);
 
   const processMedia = async (
     media: TMedia,
@@ -74,15 +75,23 @@ export const useUpload = ({
     tweet: Tweet["tweet"],
     embeddedImage: TEmbeddedImage[],
   ) => {
-    let postText = simulate
-      ? tweet.full_text
-      : await cleanTweetText(tweet.full_text);
+    if (!agent) return;
+    let postText = await cleanTweetText(tweet.full_text);
 
-    // Truncate text if necessary
     if (postText.length > 300) postText = postText.substring(0, 296) + "...";
 
+    // URLs handled
+    const urls = tweet.entities?.urls?.map((url) => url.display_url) || [];
+
+    if (!simulate) {
+      postText = await cleanTweetText(tweet.full_text);
+      if (postText.length > 300) postText = postText.substring(0, 296) + "...";
+    }
+
+    if (urls.length > 0) postText += `\n\n${urls.join(" ")}`;
+
+    // rich texts
     const rt = new RichText({ text: postText });
-    if (!agent) return;
     await rt.detectFacets(agent);
 
     const tweetCreatedAt = new Date(tweet.created_at).toISOString();
@@ -98,21 +107,21 @@ export const useUpload = ({
           : undefined,
     };
 
+    console.log(postRecord);
+
     // Merge any additional embed data
     const embed = getMergeEmbed(embeddedImage);
     if (embed && Object.keys(embed).length > 0) {
       Object.assign(postRecord, { embed });
     }
 
-    if (!simulate) {
-      await new Promise((resolve) => setTimeout(resolve, ApiDelay)); // Throttle API calls
-      const recordData = await agent?.post(postRecord);
-      const postRkey = recordData?.uri.split("/").pop();
-      if (postRkey) {
-        const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}/post/${postRkey}`;
-        console.log("Bluesky post created:", postRecord.text);
-        console.log(postUri);
-      }
+    await new Promise((resolve) => setTimeout(resolve, ApiDelay)); // Throttle API calls
+    const recordData = await agent?.post(postRecord);
+    const postRkey = recordData?.uri.split("/").pop();
+    if (postRkey) {
+      const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}/post/${postRkey}`;
+      console.log("Bluesky post created:", postRecord.text);
+      console.log(postUri);
     }
   };
 
@@ -134,6 +143,7 @@ export const useUpload = ({
         tweetsFile,
         dateRange,
       );
+
       let importedTweet = 0;
 
       for (const [index, { tweet }] of validTweets.entries()) {
@@ -141,7 +151,6 @@ export const useUpload = ({
           setProgress(Math.round((index / validTweets.length) * 100));
           if (cannotPost(tweet, tweets)) continue;
 
-          // Process media
           const embeddedImage: TEmbeddedImage[] = [];
           if (tweet.extended_entities?.media) {
             for (const media of tweet.extended_entities.media) {
@@ -151,9 +160,9 @@ export const useUpload = ({
             }
           }
 
-          await createPostRecord(tweet, embeddedImage);
-
-          importedTweet++;
+          await createPostRecord(tweet, embeddedImage).then(() => {
+            importedTweet++;
+          });
         } catch (error) {
           console.error(`Error processing tweet ${tweet.id}:`, error);
         }

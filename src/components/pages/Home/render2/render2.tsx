@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useUpload } from "@/hooks/useUpload";
 import { Render2Props } from "@/types/render";
+import { useEffect } from "react";
 
 const RenderStep2: React.FC<Render2Props> = ({
   setCurrentStep,
@@ -11,6 +12,12 @@ const RenderStep2: React.FC<Render2Props> = ({
   const { isProcessing, progress, tweet_to_bsky } = useUpload({
     shareableData,
   });
+
+  useEffect(() => {
+    if (isProcessing == false && progress == 100) {
+      setCurrentStep(3);
+    }
+  }, [isProcessing, progress]);
 
   return (
     <div className="space-y-6">

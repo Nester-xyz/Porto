@@ -2,7 +2,7 @@ import { useState } from "react";
 import { initialShareableData } from "@/lib/constant";
 import RenderStep1 from "./render1/render1";
 import { shareableData } from "@/types/render";
-import RenderStep2 from "./render2";
+import RenderStep2 from "./render2/render2";
 import RenderStep3 from "./render3";
 import Steps from "./steps";
 
