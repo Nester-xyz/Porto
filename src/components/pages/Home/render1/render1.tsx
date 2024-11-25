@@ -16,6 +16,7 @@ const RenderStep1: React.FC<Render1Props> = ({
 
   const { fileState, handleFileUpload, isFilePresent } =
     UseFileUpload(initialFileState);
+
   const { analysisProgress, tweets, validTweets } = useAnalysis(
     fileState,
     dateRange,

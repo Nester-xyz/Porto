@@ -1,8 +1,10 @@
-import AtpAgent from "@atproto/api";
-import { DateRange, Tweet } from "@/types/tweets";
+import AtpAgent, { AppBskyActorProfile, BlobRef } from "@atproto/api";
+import { TEmbeddedImage, Tweet } from "@/types/tweets";
+import { TDateRange, TFileState } from "@/types/render";
 import he from "he";
 import URI from "urijs";
 
+type BlobResponse = BlobRef;
 export const findFileFromMap = (
   fileMap: Map<string, File>,
   fileName: string,
@@ -38,7 +40,8 @@ export const isQuote = (tweets: Tweet[], id: string) => {
   const tweet = tweets.find((tweet) => tweet.tweet.id === id);
   if (!tweet) throw new Error(`Tweet with id ${id} not found`);
 
-  const urls = tweet.tweet.entities.urls;
+  const urls = tweet.tweet.entities?.urls;
+  if (!urls) return false;
   if (urls.length < 0) return false;
 
   const isQuoted = urls.find((url) => twitterUrlRegex.test(url.expanded_url));
@@ -47,7 +50,7 @@ export const isQuote = (tweets: Tweet[], id: string) => {
 
 export const sortTweetsWithDateRange = (
   tweets: Tweet[],
-  dateRange: DateRange,
+  dateRange: TDateRange,
 ) =>
   tweets
     .filter((tweet) => {
@@ -88,7 +91,7 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
   if (urls.length > 0) {
     const newUrls = await Promise.all(urls.map(resolveShortURL));
     let j = 0;
-    newText = URI.withinString(tweetFullText, (url) => {
+    newText = URI.withinString(tweetFullText, () => {
       if (newUrls[j].indexOf("/photo/") > 0) {
         j++;
         return "";
@@ -122,6 +125,7 @@ export async function bulkDeleteBskyPost(agent: AtpAgent): Promise<{
     let cursor: string | undefined = undefined; // Initialize as undefined instead of empty string
     const limit: number = 50;
 
+    let run = true;
     do {
       // Get batch of posts
       const { data } = await agent.getAuthorFeed({
@@ -131,6 +135,7 @@ export async function bulkDeleteBskyPost(agent: AtpAgent): Promise<{
       });
 
       if (!data?.feed) {
+        run = false;
         break; // Exit if no feed is returned
       }
 
@@ -163,9 +168,10 @@ export async function bulkDeleteBskyPost(agent: AtpAgent): Promise<{
 
       // If no cursor returned, break the loop
       if (!cursor) {
+        run = false;
         break;
       }
-    } while (true);
+    } while (run);
 
     return results;
   } catch (error) {
@@ -257,7 +263,7 @@ export const importXProfileToBsky = async (
       url: profileJson.description.website,
     };
     // Upload profile image
-    let avatarRef: any;
+    let avatarRef: BlobResponse | undefined;
     if (profileData.profile_image_url) {
       try {
         const imageResponse = await fetch(profileData.profile_image_url);
@@ -272,7 +278,7 @@ export const importXProfileToBsky = async (
     }
 
     // Upload banner image
-    let bannerRef: any;
+    let bannerRef: BlobRef;
     if (profileData.profile_banner_url) {
       try {
         const bannerResponse = await fetch(profileData.profile_banner_url);
@@ -343,20 +349,12 @@ export const importXProfileToBsky = async (
   }
 };
 
-export function getMergeEmbed(
-  images: [] = [],
-  embeddedVideo: {} | null = null,
-): {} | null {
-  let mediaData: {} | null = null;
+export function getMergeEmbed(images: TEmbeddedImage[] = []) {
+  let mediaData = null;
   if (images.length > 0) {
     mediaData = {
       $type: "app.bsky.embed.images",
       images,
-    };
-  } else if (embeddedVideo != null) {
-    mediaData = {
-      $type: "app.bsky.embed.video",
-      video: embeddedVideo,
     };
   }
 

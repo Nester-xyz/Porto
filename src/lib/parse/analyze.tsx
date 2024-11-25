@@ -7,7 +7,8 @@ export const isQuote = (tweets: Tweet[], id: string) => {
   const tweet = tweets.find((tweet) => tweet.tweet.id === id);
   if (!tweet) throw new Error(`Tweet with id ${id} not found`);
 
-  const urls = tweet.tweet.entities.urls;
+  const urls = tweet.tweet.entities?.urls;
+  if (!urls) return
   if (urls.length < 0) return false;
 
   const isQuoted = urls.find((url) => twitterUrlRegex.test(url.expanded_url));

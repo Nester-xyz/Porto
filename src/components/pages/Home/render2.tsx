@@ -9,10 +9,12 @@ import {
   parseTweetsFile,
   sortTweetsWithDateRange,
 } from "@/lib/parse/parse";
-import { Render2Props, shareableData } from "@/types/render";
-import AtpAgent, { AppBskyVideoDefs, BlobRef, RichText } from "@atproto/api";
+import { Render2Props } from "@/types/render";
+import { RichText } from "@atproto/api";
 import { getMergeEmbed } from "@/components/utils";
 import { useState } from "react";
+import { filePassableType } from "@/hooks/useUpload";
+import { TEmbeddedImage } from "@/types/tweets";
 
 const RenderStep2: React.FC<Render2Props> = ({
   setCurrentStep,
@@ -62,21 +64,14 @@ const RenderStep2: React.FC<Render2Props> = ({
 
           if (!isPostValid(tweet) || isQuote(tweets, tweet.id)) continue;
 
-          let embeddedImage = [] as any;
-          let embeddedVideo: BlobRef | undefined = undefined;
-          let hasVideo = false;
+          const embeddedImage: TEmbeddedImage[] = [];
 
           // Process media for embedding
           if (tweet.extended_entities?.media) {
             for (const media of tweet.extended_entities.media) {
               if (media.type === "photo") {
                 const fileType = media.media_url.split(".").pop();
-                const mimeType =
-                  fileType === "png"
-                    ? "image/png"
-                    : fileType === "jpg"
-                      ? "image/jpeg"
-                      : "";
+                const mimeType = filePassableType(fileType);
 
                 if (!mimeType) continue;
                 if (embeddedImage.length >= 4) break;
@@ -86,8 +81,9 @@ const RenderStep2: React.FC<Render2Props> = ({
 
                 if (imageFile) {
                   const imageBuffer = await imageFile.arrayBuffer();
+                  const uint8Array = new Uint8Array(imageBuffer);
                   if (!simulate) {
-                    const blobRecord = await agent.uploadBlob(imageBuffer, {
+                    const blobRecord = await agent.uploadBlob(uint8Array, {
                       encoding: mimeType,
                     });
 
@@ -102,18 +98,13 @@ const RenderStep2: React.FC<Render2Props> = ({
                     });
                   }
                 }
-              } else if (media.type === "video") {
-                // Handle video uploads (logic as provided earlier)
-                embeddedVideo = await handleVideoUpload(media, agent, mediaLocation, tweet.id);
-                hasVideo = true;
-                break; // Only one video can be embedded
               } else {
-                console.log("Skipping non-photo, non-video media type:", media.type);
+                console.log("Skipping non-photo, edia type:", media.type);
                 continue;
               }
             }
           }
-          console.log(`Final post will contain ${embeddedImage.length} images and ${embeddedVideo ? 1 : 0} videos`);
+          console.log(`Final post will contain ${embeddedImage.length} images`);
           let postText = tweet.full_text;
           const urls = tweet.entities?.urls?.map((url) => url.display_url) || [];
 
@@ -140,11 +131,10 @@ const RenderStep2: React.FC<Render2Props> = ({
             },
           };
 
-          console.log("This is the post record payload", postRecord);
-
-          const embed = getMergeEmbed(embeddedImage, embeddedVideo);
-          if (embed && Object.keys(embed).length > 0) Object.assign(postRecord, { embed });
-
+          const embed = getMergeEmbed(embeddedImage);
+          if (embed && Object.keys(embed).length > 0) {
+            Object.assign(postRecord, { embed });
+          }
           if (!simulate) {
             await new Promise((resolve) => setTimeout(resolve, ApiDelay));
             const recordData = await agent.post(postRecord);

@@ -1,5 +1,16 @@
 export interface Entities {
-  urls: unknown[];
+  urls?: [
+    {
+      url: string;
+      expanded_url: string;
+      display_url: string;
+    },
+  ];
+}
+
+export interface TMedia {
+  type: string;
+  media_url: string;
 }
 
 export interface Tweet {
@@ -10,11 +21,18 @@ export interface Tweet {
     in_reply_to_screen_name?: string;
     entities?: Entities;
     extended_entities?: {
-      media: {
-        type: string;
-        media_url: string;
-      }[];
+      media: media[];
     };
+  };
+}
+
+export interface TEmbeddedImage {
+  alt: "";
+  image: {
+    $type: "blob";
+    ref: blobRecord.data.blob.ref;
+    mimeType: blobRecord.data.blob.mimeType;
+    size: blobRecord.data.blob.size;
   };
 }
 
