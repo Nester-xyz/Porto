@@ -208,8 +208,7 @@ const RenderStep2: React.FC<Render2Props> = ({
                     const errorText = await uploadResponse.text();
                     throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
                   }
-
-
+          
                   jobStatus = (await uploadResponse.json()) as AppBskyVideoDefs.JobStatus;
                   console.log('Upload successful:', jobStatus);
                 } catch (error: any) {
@@ -263,11 +262,20 @@ const RenderStep2: React.FC<Render2Props> = ({
           }
           console.log(`Final post will contain ${embeddedImage.length} images and ${embeddedVideo ? 1 : 0} videos`);
           let postText = tweet.full_text;
+
+          // Extract URLs from the tweet's entities
+          const urls = tweet.entities?.urls?.map(url => url.display_url) || [];
+
           if (!simulate) {
             postText = await cleanTweetText(tweet.full_text);
             if (postText.length > 300) {
               postText = postText.substring(0, 296) + "...";
             }
+          }
+
+          // Append URLs to the postText
+          if (urls.length > 0) {
+            postText += `\n\n${urls.join(' ')}`;
           }
 
           const rt = new RichText({ text: postText });
@@ -375,3 +383,4 @@ const RenderStep2: React.FC<Render2Props> = ({
 };
 
 export default RenderStep2;
+
