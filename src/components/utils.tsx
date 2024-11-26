@@ -428,7 +428,7 @@ export async function recompressImageIfNeeded(
 async function fetchOembed(url: string): Promise<any> {
   // Expanded list of OEmbed providers with more flexible discovery
   const oembedProviders = [
-    `https://iframe.ly/api/oembed?url=${encodeURIComponent(url)}&api_key=85bb1a2f7c957a15e2995a`
+    `https://open.iframe.ly/api/oembed?url=${encodeURIComponent(url)}`,
   ];
 
   // Try HTML link tag discovery first
