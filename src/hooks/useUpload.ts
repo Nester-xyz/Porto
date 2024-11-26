@@ -17,8 +17,7 @@ export const filePassableType = (fileType: string = ""): string => {
 const cannotPost = (
   singleTweet: Tweet["tweet"],
   tweetsArray: Tweet[],
-): boolean =>
-  !isPostValid(singleTweet) || isQuote(tweetsArray, singleTweet.id);
+): boolean => !isPostValid(singleTweet) || isQuote(tweetsArray, singleTweet.id);
 
 export const useUpload = ({
   shareableData,
@@ -53,22 +52,18 @@ export const useUpload = ({
     const imageBuffer = await imageFile.arrayBuffer();
     const uint8Array = new Uint8Array(imageBuffer);
 
-    if (!simulate) {
-      const blobRecord = await agent?.uploadBlob(uint8Array, {
-        encoding: mimeType,
-      });
-      return {
-        alt: "",
-        image: {
-          $type: "blob",
-          ref: blobRecord?.data.blob.ref,
-          mimeType: blobRecord?.data.blob.mimeType,
-          size: blobRecord?.data.blob.size,
-        },
-      };
-    }
-
-    return null; // Simulation mode does not upload
+    const blobRecord = await agent?.uploadBlob(uint8Array, {
+      encoding: mimeType,
+    });
+    return {
+      alt: "",
+      image: {
+        $type: "blob",
+        ref: blobRecord?.data.blob.ref,
+        mimeType: blobRecord?.data.blob.mimeType,
+        size: blobRecord?.data.blob.size,
+      },
+    };
   };
 
   const createPostRecord = async (
@@ -77,6 +72,7 @@ export const useUpload = ({
   ) => {
     if (!agent) return;
     let postText = await cleanTweetText(tweet.full_text);
+    console.log(embeddedImage, "embed");
 
     if (postText.length > 300) postText = postText.substring(0, 296) + "...";
 
