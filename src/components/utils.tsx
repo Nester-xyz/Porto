@@ -1,7 +1,8 @@
-import AtpAgent from "@atproto/api"
-import { DateRange, Tweet } from "@/types/tweets.type";
 import imageCompression from 'browser-image-compression';
 import { parse } from 'node-html-parser';
+import AtpAgent, { AppBskyActorProfile, BlobRef } from "@atproto/api";
+import { TEmbeddedImage, Tweet } from "@/types/tweets";
+import { TDateRange, TFileState } from "@/types/render";
 import he from "he";
 import URI from "urijs";
 const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
@@ -20,8 +21,9 @@ interface EmbedCard {
   description: string;
   thumb: Thumb;
 }
+type BlobResponse = BlobRef;
 export const findFileFromMap = (
-  fileMap: Map<String, File>,
+  fileMap: Map<string, File>,
   fileName: string,
 ): File | null => {
   if (!fileMap || fileMap.size === 0) return null;
@@ -55,7 +57,8 @@ export const isQuote = (tweets: Tweet[], id: string) => {
   const tweet = tweets.find((tweet) => tweet.tweet.id === id);
   if (!tweet) throw new Error(`Tweet with id ${id} not found`);
 
-  const urls = tweet.tweet.entities.urls;
+  const urls = tweet.tweet.entities?.urls;
+  if (!urls) return false;
   if (urls.length < 0) return false;
 
   const isQuoted = urls.find((url) => twitterUrlRegex.test(url.expanded_url));
@@ -64,7 +67,7 @@ export const isQuote = (tweets: Tweet[], id: string) => {
 
 export const sortTweetsWithDateRange = (
   tweets: Tweet[],
-  dateRange: DateRange,
+  dateRange: TDateRange,
 ) =>
   tweets
     .filter((tweet) => {
@@ -105,7 +108,7 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
   if (urls.length > 0) {
     const newUrls = await Promise.all(urls.map(resolveShortURL));
     let j = 0;
-    newText = URI.withinString(tweetFullText, (url) => {
+    newText = URI.withinString(tweetFullText, () => {
       if (newUrls[j].indexOf("/photo/") > 0) {
         j++;
         return "";
@@ -124,37 +127,37 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
   return removeTcoLinks(newText);
 }
 
-export async function bulkDeleteBskyPost(
-  agent: AtpAgent
-): Promise<{
+export async function bulkDeleteBskyPost(agent: AtpAgent): Promise<{
   totalPosts: number;
   deleted: number;
-  failed: Array<{ uri: string; error: Error }>
+  failed: Array<{ uri: string; error: Error }>;
 }> {
   const results = {
     totalPosts: 0,
     deleted: 0,
-    failed: [] as Array<{ uri: string; error: Error }>
+    failed: [] as Array<{ uri: string; error: Error }>,
   };
 
   try {
     let cursor: string | undefined = undefined; // Initialize as undefined instead of empty string
     const limit: number = 50;
 
+    let run = true;
     do {
       // Get batch of posts
       const { data } = await agent.getAuthorFeed({
         actor: agent.did!,
         limit,
-        ...(cursor ? { cursor } : {}) // Only include cursor if it exists
+        ...(cursor ? { cursor } : {}), // Only include cursor if it exists
       });
 
       if (!data?.feed) {
+        run = false;
         break; // Exit if no feed is returned
       }
 
       const { feed } = data;
-      console.log('Current batch of posts:', feed);
+      console.log("Current batch of posts:", feed);
       results.totalPosts += feed.length;
 
       // Process current batch in smaller chunks
@@ -169,10 +172,11 @@ export async function bulkDeleteBskyPost(
             } catch (error) {
               results.failed.push({
                 uri: post.uri,
-                error: error instanceof Error ? error : new Error(String(error))
+                error:
+                  error instanceof Error ? error : new Error(String(error)),
               });
             }
-          })
+          }),
         );
       }
 
@@ -181,22 +185,24 @@ export async function bulkDeleteBskyPost(
 
       // If no cursor returned, break the loop
       if (!cursor) {
+        run = false;
         break;
       }
-
-    } while (true);
+    } while (run);
 
     return results;
   } catch (error) {
-    console.error('Error in bulkDeleteBskyPost:', error);
+    console.error("Error in bulkDeleteBskyPost:", error);
     throw error;
   }
 }
 
-
-export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileState) => {
+export const importXProfileToBsky = async (
+  agent: AtpAgent,
+  fileState: TFileState,
+) => {
   if (!agent) {
-    throw new Error('Bluesky agent not initialized');
+    throw new Error("Bluesky agent not initialized");
   }
 
   try {
@@ -204,7 +210,7 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
       Array.from(fileState.files || []).map((file) => [
         file.webkitRelativePath,
         file,
-      ])
+      ]),
     );
 
     // Find the profile.js file in the correct path structure
@@ -217,13 +223,17 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
       return null;
     };
 
-    const profileFile = findProfileFile('data/profile.js');
-    const accountFile = findProfileFile('data/account.js');
+    const profileFile = findProfileFile("data/profile.js");
+    const accountFile = findProfileFile("data/account.js");
     if (!profileFile) {
-      throw new Error('Profile data file not found in the uploaded Twitter archive');
+      throw new Error(
+        "Profile data file not found in the uploaded Twitter archive",
+      );
     }
     if (!accountFile) {
-      throw new Error('Account data file not found in the uploaded Twitter archive');
+      throw new Error(
+        "Account data file not found in the uploaded Twitter archive",
+      );
     }
 
     // Read and parse the profile data
@@ -239,25 +249,25 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
     try {
       // Remove 'window.YTD.profile.part0 = ' and parse the remaining array
       const cleanContent = profileContent
-        .replace(/window\.YTD\.profile\.part0 = /, '')
+        .replace(/window\.YTD\.profile\.part0 = /, "")
         .trim();
       const profileArray = JSON.parse(cleanContent);
       profileJson = profileArray[0].profile; // Access the first profile object
     } catch (e) {
       console.error("Failed to parse profile data:", e);
-      throw new Error('Failed to parse profile data from file');
+      throw new Error("Failed to parse profile data from file");
     }
 
     try {
       // Remove 'window.YTD.account.part0 = ' and parse the remaining array
       const cleanContent = accountContent
-        .replace(/window\.YTD\.account\.part0 = /, '')
+        .replace(/window\.YTD\.account\.part0 = /, "")
         .trim();
       const accountArray = JSON.parse(cleanContent);
       accountJson = accountArray[0].account; // Access the first account object
     } catch (e) {
       console.error("Failed to parse profile data:", e);
-      throw new Error('Failed to parse profile data from file');
+      throw new Error("Failed to parse profile data from file");
     }
 
     // Extract relevant profile data with fallbacks
@@ -265,44 +275,44 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
       profile_image_url: profileJson.avatarMediaUrl,
       profile_banner_url: profileJson.headerMediaUrl,
       description: profileJson.description.bio,
-      name: profileJson.displayName || '', // if displayName is not available, use empty string
+      name: profileJson.displayName || "", // if displayName is not available, use empty string
       location: profileJson.description.location,
       url: profileJson.description.website,
     };
     // Upload profile image
-    let avatarRef: any;
+    let avatarRef: BlobResponse | undefined;
     if (profileData.profile_image_url) {
       try {
         const imageResponse = await fetch(profileData.profile_image_url);
         const imageBlob = await imageResponse.blob();
         const uploadResponse = await agent.uploadBlob(imageBlob, {
-          encoding: 'image/jpeg',
+          encoding: "image/jpeg",
         });
         avatarRef = uploadResponse.data.blob;
       } catch (error) {
-        console.warn('Failed to upload avatar image:', error);
+        console.warn("Failed to upload avatar image:", error);
       }
     }
 
     // Upload banner image
-    let bannerRef: any;
+    let bannerRef: BlobRef;
     if (profileData.profile_banner_url) {
       try {
         const bannerResponse = await fetch(profileData.profile_banner_url);
         const bannerBlob = await bannerResponse.blob();
         const bannerUploadResponse = await agent.uploadBlob(bannerBlob, {
-          encoding: 'image/jpeg',
+          encoding: "image/jpeg",
         });
         bannerRef = bannerUploadResponse.data.blob;
       } catch (error) {
-        console.warn('Failed to upload banner image:', error);
+        console.warn("Failed to upload banner image:", error);
       }
     }
 
     // Update profile using the correct upsertProfile method
     await agent.upsertProfile(async (existing) => {
       const updatedProfile: AppBskyActorProfile.Record = {
-        $type: 'app.bsky.actor.profile',  // Add this line
+        $type: "app.bsky.actor.profile", // Add this line
         displayName: accountJson.accountDisplayName,
         description: profileData.description,
         ...(avatarRef && { avatar: avatarRef }),
@@ -310,17 +320,16 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
 
         // Correct labels structure
         labels: {
-          $type: 'com.atproto.label.defs#selfLabels',
-          values: [
-          ]
+          $type: "com.atproto.label.defs#selfLabels",
+          values: [],
         },
 
         // Preserve existing fields
         ...(existing?.createdAt && { createdAt: existing.createdAt }),
         ...(existing?.pinnedPost && { pinnedPost: existing.pinnedPost }),
         ...(existing?.joinedViaStarterPack && {
-          joinedViaStarterPack: existing.joinedViaStarterPack
-        })
+          joinedViaStarterPack: existing.joinedViaStarterPack,
+        }),
       };
 
       // Preserve existing fields
@@ -339,7 +348,7 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
 
     return {
       success: true,
-      message: 'Profile successfully updated on Bluesky',
+      message: "Profile successfully updated on Bluesky",
       updatedFields: {
         avatar: !!avatarRef,
         banner: !!bannerRef,
@@ -350,9 +359,9 @@ export const importXProfileToBsky = async (agent: AtpAgent, fileState: TFileStat
       },
     };
   } catch (error) {
-    console.error('Error importing profile to Bluesky:', error);
+    console.error("Error importing profile to Bluesky:", error);
     throw new Error(
-      `Failed to import profile: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to import profile: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 };

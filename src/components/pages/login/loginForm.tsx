@@ -1,50 +1,29 @@
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { HiEye } from "react-icons/hi";
-import { HiEyeSlash } from "react-icons/hi2";
-import { BsFillInfoCircleFill } from "react-icons/bs";
 import { CgDanger } from "react-icons/cg";
-import { useLogInContext } from "@/hooks/LogInContext";
-import Home from "./pages/Home/home";
+import { BsFillInfoCircleFill } from "react-icons/bs";
+import { HiEye, HiEyeSlash } from "react-icons/hi2";
+import { Button } from "@/components/ui/button";
 
-const Login = () => {
-  const [showPassword, setShowPassword] = useState(false);
+type LoginFormProps = {
+  onLogin: (userName: string, password: string) => void;
+  error: string;
+  isLoading: boolean;
+};
+
+const LoginForm = ({ onLogin, error, isLoading }: LoginFormProps) => {
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
   const [showToolTip, setShowToolTip] = useState(false);
-  const [error, setError] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const { agent, loggedIn, setLoggedIn } = useLogInContext();
-
-  useEffect(() => {
-    console.log("useeffect", loggedIn);
-  }, [loggedIn]);
-
-  const onLogin = async () => {
-    if (!agent) {
-      console.log("no agent", agent);
-      return;
-    }
-
-    console.log(agent);
-    setIsLoading(true);
-
-    try {
-      const user = await agent.login({
-        identifier: userName.toString(),
-        password: password.toString(),
-      });
-      if (user.success) {
-        setLoggedIn(user.success);
-      }
-    } catch (error) {
-      console.log("Error logging in:", error);
-      setError("Invalid username or password");
-      setIsLoading(false);
+  const handleSubmit = () => {
+    if (userName === "" || password === "") {
+      alert("Please fill in both the username and password.");
+    } else {
+      onLogin(userName, password);
     }
   };
 
@@ -54,23 +33,6 @@ const Login = () => {
       "_blank",
     );
   };
-
-  const onClick = () => {
-    if (userName === "" || password === "") {
-      alert("Please fill in both the username and password.");
-    } else {
-      console.log("Logging in with:", { userName, password });
-      onLogin();
-    }
-  };
-
-  if (loggedIn) {
-    return (
-      <>
-        <Home />
-      </>
-    );
-  }
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -83,7 +45,7 @@ const Login = () => {
             className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
-              onClick();
+              handleSubmit();
             }}
           >
             {/* Error */}
@@ -166,4 +128,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default LoginForm;
