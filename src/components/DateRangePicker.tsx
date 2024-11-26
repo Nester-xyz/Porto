@@ -14,7 +14,7 @@ const DateRangePicker = ({
   setDateRange: React.Dispatch<React.SetStateAction<TDateRange>>;
 }) => {
   const [startDate, setStartDate] = useState(dateRange.min_date ?? new Date());
-  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  const [endDate, setEndDate] = useState<Date | undefined>(dateRange.max_date);
 
   useEffect(() => {
     if (startDate && endDate) {

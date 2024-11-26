@@ -11,7 +11,7 @@ import {
 } from "@/lib/parse/parse";
 import { Render2Props, shareableData } from "@/types/render";
 import AtpAgent, { AppBskyVideoDefs, BlobRef, RichText } from "@atproto/api";
-import { getMergeEmbed } from "@/components/utils";
+import { getMergeEmbed, fetchEmbedUrlCard, getEmbeddedUrlAndRecord } from "@/components/utils";
 import { useState } from "react";
 
 const RenderStep2: React.FC<Render2Props> = ({
@@ -274,28 +274,44 @@ const RenderStep2: React.FC<Render2Props> = ({
           await rt.detectFacets(agent);
 
           console.log();
+          const twitterHandles = ['whoisanku']
+
+          const { embeddedUrl = null, embeddedRecord = null } = getEmbeddedUrlAndRecord(twitterHandles, tweet.entities?.urls, sortedTweets);
+
+          let externalEmbed = null;
+          if (tweet.entities?.urls) {
+            for (const urlEntity of tweet.entities.urls) {
+              if (!urlEntity.expanded_url.startsWith('https://twitter.com') && !urlEntity.expanded_url.startsWith('https://x.com')) {
+                try {
+                  externalEmbed = await fetchEmbedUrlCard(urlEntity.expanded_url, agent);
+                  console.log(externalEmbed);
+                }
+                catch (error: any) {
+                  console.warn(`Error fetching embed URL card: ${error.message}`);
+                }
+              }
+            }
+          }
 
           const postRecord = {
             $type: "app.bsky.feed.post",
             text: rt.text,
             facets: rt.facets,
             createdAt: tweet_createdAt,
-            embed:
-              embeddedImage.length > 0
-                ? { $type: "app.bsky.embed.images", images: embeddedImage }
-                : undefined,
           };
 
-          const embed = getMergeEmbed(embeddedImage, embeddedVideo);
+          const embed = getMergeEmbed(embeddedImage, embeddedVideo, embeddedRecord);
           if (embed && Object.keys(embed).length > 0) {
             Object.assign(postRecord, { embed });
+          } else if (externalEmbed) {
+            Object.assign(postRecord, { embed: externalEmbed });
           }
           if (!simulate) {
             await new Promise((resolve) => setTimeout(resolve, ApiDelay));
             const recordData = await agent.post(postRecord);
             const postRkey = recordData.uri.split("/").pop();
             if (postRkey) {
-              const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}/post/${postRkey}`;
+              const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}.bsky.social/post/${postRkey}`;
               console.log(postUri);
               console.log("Bluesky post created:", postRecord.text);
               importedTweet++;
