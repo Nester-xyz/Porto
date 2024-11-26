@@ -12,7 +12,7 @@ chrome.action.onClicked.addListener(async () => {
   }
 
   const window = await chrome.windows.create({
-    url: "popup.html",
+    url: "index.html",
     type: "popup",
     width: 500,
     height: 800,
