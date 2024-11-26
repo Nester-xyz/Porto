@@ -1,10 +1,10 @@
 import { TDateRange } from "@/types/render";
-import { Tweet } from "@/types/tweets.type";
+import { Tweet } from "@/types/tweets";
 import he from "he";
 import URI from "urijs";
 
 export const findFileFromMap = (
-  fileMap: Map<String, File>,
+  fileMap: Map<string, File>,
   fileName: string,
 ): File | null => {
   if (!fileMap || fileMap.size === 0) return null;
@@ -17,18 +17,14 @@ export const findFileFromMap = (
 };
 
 export const parseTweetsFile = (content: string): Tweet[] => {
-  // console.log(content, "this is content");
   try {
-    return JSON.parse(content);
-  } catch {
-    try {
-      const jsonContent = content
-        .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, "")
-        .replace(/;$/, "");
-      return JSON.parse(jsonContent);
-    } catch (error) {
-      throw new Error(`Failed to parse tweets file: ${error}`);
-    }
+    const jsonContent = content
+      .replace(/^window\.YTD\.tweets\.part0\s*=\s*/, "")
+      .replace(/;$/, "")
+      .trim();
+    return JSON.parse(jsonContent);
+  } catch (error) {
+    throw new Error(`Failed to parse tweets file: ${error}`);
   }
 };
 
@@ -38,10 +34,10 @@ export const isQuote = (tweets: Tweet[], id: string) => {
   const tweet = tweets.find((tweet) => tweet.tweet.id === id);
   if (!tweet) throw new Error(`Tweet with id ${id} not found`);
 
-  const urls = tweet.tweet.entities.urls;
-  if (urls.length < 0) return false;
+  const urls = tweet.tweet.entities!.urls;
+  if (urls && urls.length < 0) return false;
 
-  const isQuoted = urls.find((url) => twitterUrlRegex.test(url.expanded_url));
+  const isQuoted = urls?.find((url) => twitterUrlRegex.test(url.expanded_url));
   return isQuoted ? true : false;
 };
 
@@ -51,7 +47,6 @@ export const isPostValid = (tweet: Tweet["tweet"]) => {
     tweet.full_text.startsWith("@") ||
     tweet.full_text.startsWith("RT ")
   ) {
-    console.log("skipped", tweet.full_text);
     return false;
   }
   return true;
@@ -101,8 +96,12 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
   if (urls.length > 0) {
     const newUrls = await Promise.all(urls.map(resolveShortURL));
     let j = 0;
-    newText = URI.withinString(tweetFullText, (url) => {
-      if (newUrls[j].startsWith('https://t.co/') || newUrls[j].indexOf("/photo/") > 0 || newUrls[j].indexOf("/video/") > 0) {
+    newText = URI.withinString(tweetFullText, () => {
+      if (
+        newUrls[j].startsWith("https://t.co/") ||
+        newUrls[j].indexOf("/photo/") > 0 ||
+        newUrls[j].indexOf("/video/") > 0
+      ) {
         j++;
         return "";
       }

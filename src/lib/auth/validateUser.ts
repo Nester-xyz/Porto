@@ -13,7 +13,7 @@ export const ValidateUser = async (
     agentInstance = new AtpAgent({
       service: "https://bsky.social",
       persistSession: (_: AtpSessionEvent, sess?: AtpSessionData) => {
-        console.log(sess);
+        // console.log(sess);
         if (!sess) return;
         // Store session data
         localStorage.setItem("handle", sess.handle);
