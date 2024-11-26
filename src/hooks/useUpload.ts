@@ -72,18 +72,11 @@ export const useUpload = ({
   ) => {
     if (!agent) return;
     let postText = await cleanTweetText(tweet.full_text);
-    console.log(embeddedImage, "embed");
 
     if (postText.length > 300) postText = postText.substring(0, 296) + "...";
 
     // URLs handled
     const urls = tweet.entities?.urls?.map((url) => url.display_url) || [];
-
-    if (!simulate) {
-      postText = await cleanTweetText(tweet.full_text);
-      if (postText.length > 300) postText = postText.substring(0, 296) + "...";
-    }
-
     if (urls.length > 0) postText += `\n\n${urls.join(" ")}`;
 
     // rich texts
@@ -97,10 +90,10 @@ export const useUpload = ({
       text: rt.text,
       facets: rt.facets,
       createdAt: tweetCreatedAt,
-      embed:
-        embeddedImage.length > 0
-          ? { $type: "app.bsky.embed.images", images: embeddedImage }
-          : undefined,
+      embed: {
+        $type: "app.bsky.embed.images",
+        images: embeddedImage,
+      },
     };
 
     console.log(postRecord);

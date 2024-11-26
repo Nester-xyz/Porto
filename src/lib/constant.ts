@@ -17,7 +17,7 @@ export const initalTweetAnalyzer = {
 };
 
 export const intialDate = {
-  min_date: new Date(2000, 1, 1),
+  min_date: new Date(2000, 0, 1),
   max_date: new Date(),
 };
 
