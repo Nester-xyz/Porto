@@ -1,9 +1,26 @@
+import imageCompression from 'browser-image-compression';
+import { parse } from 'node-html-parser';
 import AtpAgent, { AppBskyActorProfile, BlobRef } from "@atproto/api";
 import { TEmbeddedImage, Tweet } from "@/types/tweets";
 import { TDateRange, TFileState } from "@/types/render";
 import he from "he";
 import URI from "urijs";
+const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3';
 
+interface Thumb {
+  $type: "none" | "blob";
+  ref: string;
+  mimeType: string;
+  size: number;
+}
+
+interface EmbedCard {
+  uri: string;
+  title: string;
+  description: string;
+  thumb: Thumb;
+}
 type BlobResponse = BlobRef;
 export const findFileFromMap = (
   fileMap: Map<string, File>,
@@ -349,14 +366,368 @@ export const importXProfileToBsky = async (
   }
 };
 
-export function getMergeEmbed(images: TEmbeddedImage[] = []) {
-  let mediaData = null;
+
+export function getMergeEmbed(images: [] = [], embeddedVideo: {} | null = null, record: {} | null = null): {} | null {
+  let mediaData: {} | null = null;
   if (images.length > 0) {
     mediaData = {
       $type: "app.bsky.embed.images",
-      images,
+      images
+    };
+  } else if (embeddedVideo != null) {
+    mediaData = {
+      $type: "app.bsky.embed.video",
+      video: embeddedVideo,
     };
   }
 
-  return mediaData;
+  let recordData: {} | null = null;
+  if (record && Object.keys(record).length > 0) {
+    recordData = {
+      $type: "app.bsky.embed.record",
+      record
+    };
+  }
+
+  if (mediaData && recordData) {
+    return {
+      $type: "app.bsky.embed.recordWithMedia",
+      media: mediaData,
+      record: {
+        record
+      }
+    };
+  }
+
+  return mediaData || recordData;
+
+}
+
+export async function recompressImageIfNeeded(
+  imageData: File | Blob | ArrayBuffer | string
+): Promise<File> {
+  // Convert string/ArrayBuffer to File if needed
+  let file: File;
+  if (typeof imageData === 'string') {
+    // Assuming it's a base64 string
+    const response = await fetch(imageData);
+    const blob = await response.blob();
+    file = new File([blob], 'image.jpg', { type: blob.type });
+  } else if (imageData instanceof ArrayBuffer) {
+    file = new File([new Uint8Array(imageData)], 'image.jpg', { type: 'image/jpeg' });
+  } else {
+    file = imageData instanceof File ? imageData : new File([imageData], 'image.jpg');
+  }
+
+  const options = {
+    maxSizeMB: 1,
+    maxWidthOrHeight: 1920,
+    useWebWorker: true
+  };
+
+  try {
+    return await imageCompression(file, options);
+  } catch (error) {
+    console.warn('Image compression failed:', error);
+    return file;
+  }
+}
+
+
+async function fetchOembed(url: string): Promise<any> {
+  // Expanded list of OEmbed providers with more flexible discovery
+  const oembedProviders = [
+    `https://open.iframe.ly/api/oembed?url=${encodeURIComponent(url)}`,
+  ];
+
+  // Try HTML link tag discovery first
+  try {
+    const htmlDiscoveryEndpoint = await discoverOEmbedEndpointFromHTML(url);
+    if (htmlDiscoveryEndpoint) {
+      const discoveredResult = await fetchOEmbedFromDiscoveredEndpoint(htmlDiscoveryEndpoint, url);
+      if (discoveredResult) return discoveredResult;
+    }
+  } catch (error) {
+    console.debug('HTML OEmbed discovery failed:', error);
+  }
+
+  // Fallback to predefined providers
+  for (const providerUrl of oembedProviders) {
+    try {
+      const response = await fetch(providerUrl, {
+        headers: {
+          'User-Agent': USER_AGENT,
+          'Accept': 'application/json'
+        },
+        signal: AbortSignal.timeout(25000)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && (data.title || data.description || data.thumbnail_url)) {
+          return data;
+        }
+      }
+    } catch (error) {
+      console.debug(`Oembed fetch error for ${providerUrl}:`, error);
+    }
+  }
+
+  return null;
+}
+
+// Discover OEmbed endpoint from HTML link tags
+async function discoverOEmbedEndpointFromHTML(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'text/html',
+        'User-Agent': USER_AGENT
+      },
+      signal: AbortSignal.timeout(25000)
+    });
+
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    const root = parse(html);
+
+    // Look for link tags with rel="alternate" and type="application/json+oembed"
+    const oembedLinks = root.querySelectorAll('link[rel="alternate"][type="application/json+oembed"]');
+
+    if (oembedLinks.length > 0) {
+      const href = oembedLinks[0].getAttribute('href');
+      return href || null;
+    }
+
+    return null;
+  } catch (error) {
+    console.debug('HTML OEmbed discovery error:', error);
+    return null;
+  }
+}
+
+// Fetch OEmbed data from discovered endpoint
+async function fetchOEmbedFromDiscoveredEndpoint(endpoint: string, originalUrl: string): Promise<any | null> {
+  try {
+    const fullEndpoint = `${endpoint}?url=${encodeURIComponent(originalUrl)}&format=json`;
+
+    const response = await fetch(fullEndpoint, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': USER_AGENT
+      },
+      signal: AbortSignal.timeout(25000)
+    });
+
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch (error) {
+    console.debug('Discovered endpoint OEmbed fetch error:', error);
+  }
+
+  return null;
+}
+
+export async function fetchEmbedUrlCard(url: string, agent: AtpAgent): Promise<any> {
+  const card: EmbedCard = {
+    uri: url,
+    title: "",
+    description: "",
+    thumb: { $type: "none", ref: "", mimeType: "", size: 0 },
+  };
+
+  try {
+    console.log("fetching the embed url card");
+    const oembedResult = await fetchOembed(url);
+
+    if (oembedResult) {
+      card.title = oembedResult.title || card.title;
+      card.description = oembedResult.description || card.description;
+
+      if (oembedResult.thumbnail_url) {
+        try {
+          const imgResp = await fetch(oembedResult.thumbnail_url, {
+            headers: {
+              'User-Agent': USER_AGENT,
+              'Accept': 'image/*'
+            },
+            mode: 'cors',
+            credentials: 'omit',
+            signal: AbortSignal.timeout(25000)
+          });
+
+          if (imgResp.ok) {
+            let imgBuffer = await imgResp.arrayBuffer();
+            const mimeType = imgResp.headers.get('content-type') || 'image/jpeg';
+
+            if (imgBuffer.byteLength > MAX_FILE_SIZE) {
+              console.warn('Image needs compression');
+            }
+
+            if (mimeType.startsWith('image/') && !mimeType.startsWith('image/svg')) {
+              const blobRecord = await agent.uploadBlob(imgBuffer, {
+                encoding: mimeType
+              });
+
+              card.thumb = {
+                $type: "blob",
+                ref: blobRecord.data.blob.ref,
+                mimeType: blobRecord.data.blob.mimeType,
+                size: blobRecord.data.blob.size
+              };
+            }
+          }
+        } catch (error) {
+          console.warn('Thumbnail fetch error:', error);
+        }
+      }
+    }
+
+    // Fallback to direct URL fetch if no OEmbed data
+    if (!card.title && !card.description && !card.thumb.size) {
+      const resp = await fetch(url, {
+        headers: {
+          'User-Agent': USER_AGENT,
+          'Accept': 'text/html'
+        },
+        signal: AbortSignal.timeout(25000)
+      });
+
+      if (!resp.ok) {
+        if (resp.status === 401 && url.startsWith('http:')) {
+          return await fetchEmbedUrlCard(url.replace('http:', 'https:'), agent);
+        }
+        throw new Error(`HTTP error: ${resp.status} ${resp.statusText}`);
+      }
+
+      const html = await resp.text();
+      const root = parse(html);
+
+      const titleTag = root.querySelector('meta[property="og:title"]');
+      if (titleTag) {
+        card.title = he.decode(titleTag.getAttribute('content') || '');
+      }
+
+      const descriptionTag = root.querySelector('meta[property="og:description"]');
+      if (descriptionTag) {
+        card.description = he.decode(descriptionTag.getAttribute('content') || '');
+      }
+
+      const imageTag = root.querySelector('meta[property="og:image"]');
+      if (imageTag) {
+        let imgUrl = imageTag.getAttribute('content') || '';
+        if (!imgUrl.includes('://')) {
+          imgUrl = new URL(imgUrl, url).href;
+        }
+
+        try {
+          const imgResp = await fetch(imgUrl, {
+            headers: {
+              'User-Agent': USER_AGENT,
+              'Accept': 'image/*'
+            },
+            signal: AbortSignal.timeout(25000)
+          });
+
+          if (imgResp.ok) {
+            let imgBuffer = await imgResp.arrayBuffer();
+            const mimeType = imgResp.headers.get('content-type') || 'image/jpeg';
+
+            if (imgBuffer.byteLength > MAX_FILE_SIZE) {
+              console.warn('Image needs compression');
+            }
+
+            if (mimeType.startsWith('image/') && !mimeType.startsWith('image/svg')) {
+              const blobRecord = await agent.uploadBlob(imgBuffer, { encoding: mimeType });
+
+              card.thumb = {
+                $type: "blob",
+                ref: blobRecord.data.blob.ref,
+                mimeType: blobRecord.data.blob.mimeType,
+                size: blobRecord.data.blob.size
+              };
+            }
+          }
+        } catch (error) {
+          console.warn('Image fetch error:', error);
+        }
+      }
+    }
+
+    // Standardize return format for Bluesky
+    if (card.title || card.description || card.thumb.size > 0) {
+      return {
+        $type: "app.bsky.embed.external",
+        external: {
+          uri: url,
+          title: card.title || '',
+          description: card.description || '',
+          ...(card.thumb.size > 0 ? { thumb: card.thumb } : {})
+        }
+      };
+    }
+
+    return null;
+  } catch (error: any) {
+    console.warn(`Error fetching embed URL card: ${error.message}`);
+    return null;
+  }
+}
+
+export function checkPastHandles(twitterHandles: string[], url: string): boolean {
+  return (twitterHandles || []).some(handle =>
+    url.startsWith(`https://x.com/${handle}/`) ||
+    url.startsWith(`https://twitter.com/${handle}/`)
+  )
+}
+
+export function getEmbeddedUrlAndRecord(
+  twitterHandles: string[],
+  urls: Array<{ expanded_url: string }>,
+  tweets: Array<{
+    tweet: Record<string, string>,
+    bsky?: Record<string, string>,
+  }>
+): {
+  embeddedUrl: string | null;
+  embeddedRecord: {
+    "uri": string;
+    "cid": string;
+  } | null;
+} {
+  let embeddedTweetUrl: string | null = null;
+  const nullResult = {
+    embeddedUrl: null,
+    embeddedRecord: null,
+  };
+
+  // get the last one url to embed
+  const reversedUrls = urls.reverse();
+  embeddedTweetUrl = reversedUrls.find(({ expanded_url }) => checkPastHandles(twitterHandles, expanded_url))?.expanded_url ?? null;
+
+  if (!embeddedTweetUrl) {
+    return nullResult;
+  }
+
+  const index = embeddedTweetUrl.lastIndexOf("/");
+  if (index == -1) {
+    return nullResult;
+  }
+
+  const urlId = embeddedTweetUrl.substring(index + 1);
+  const tweet = tweets.find(({ tweet: { id } }) => id == urlId)
+
+  if (!tweet?.bsky) {
+    return nullResult;
+  }
+
+  return {
+    embeddedUrl: embeddedTweetUrl,
+    embeddedRecord: {
+      "uri": tweet.bsky.uri,
+      "cid": tweet.bsky.cid,
+    }
+  };
 }
