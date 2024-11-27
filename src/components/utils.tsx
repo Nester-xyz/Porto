@@ -539,6 +539,7 @@ export async function fetchEmbedUrlCard(url: string, agent: AtpAgent): Promise<a
   };
 
   try {
+    console.log("fetching the embed url card");
     const oembedResult = await fetchOembed(url);
 
     if (oembedResult) {

@@ -301,6 +301,29 @@ export const useUpload = ({
           );
 
           let externalEmbed = null;
+
+          // Other than t.co url within full text
+          function extractUrlsFromText(text: string): string[] {
+            // Regular expression to match URLs in text
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            return (text.match(urlRegex) || [])
+              .filter(url =>
+                !url.startsWith('https://twitter.com') &&
+                !url.startsWith('https://x.com') &&
+                !url.startsWith('https://t.co/')
+              );
+          }
+
+          function removeUrlsFromText(text: string): string {
+            // Regex to match URLs along with adjacent non-space characters
+            const urlRegex = /[()[\]{}"']*\s*(https?:\/\/[^\s()]+)\s*[()[\]{}"']*/g;
+
+            // Remove URLs and their immediately adjacent punctuation
+            const cleanedText = text.replace(urlRegex, '').trim();
+
+            return cleanedText;
+          }
+          // For t.co urls within full text
           if (tweet.entities?.urls) {
             for (const urlEntity of tweet.entities.urls) {
               if (!urlEntity.expanded_url.startsWith('https://twitter.com') && !urlEntity.expanded_url.startsWith('https://x.com')) {
@@ -313,6 +336,20 @@ export const useUpload = ({
               }
             }
           }
+
+          const textUrls = extractUrlsFromText(tweet.full_text);
+          if (textUrls.length > 0) {
+            console.log("textUrls", textUrls);
+            try {
+              externalEmbed = await fetchEmbedUrlCard(textUrls[0], agent);
+              console.log(externalEmbed);
+            } catch (error: any) {
+              console.warn(`Error fetching embed URL card from full_text: ${error.message}`);
+            }
+
+          }
+
+          tweet.full_text = removeUrlsFromText(tweet.full_text);
 
           await createPostRecord(tweet, embeddedImage, embeddedVideo, embeddedRecord, externalEmbed).then(() => {
             importedTweet++;
