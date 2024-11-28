@@ -20,6 +20,7 @@ const Login = () => {
       .then((user) => {
         if (user.success) {
           setLoggedIn(user.success);
+          localStorage.setItem('emailConfirmed', String(user.data.emailConfirmed));
           console.info("User Logged in with", userName);
         }
       })
