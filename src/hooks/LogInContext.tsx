@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { ValidateUser } from "../lib/auth/validateUser";
 import { LogInContextType } from "../types/login.type";
+import { RateLimitedAgent } from "@/lib/rateLimit/RateLimitedAgent";
 
 // Create context with a default value
 export const LogInContext = createContext<LogInContextType>({
   loggedIn: false,
-  setLoggedIn: () => {},
-  signOut: () => {},
+  setLoggedIn: () => { },
+  signOut: () => { },
   agent: null,
 });
 
@@ -21,19 +22,24 @@ export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    console.log("logged in contet");
-    let agentInstance;
     const validate = async () => {
       if (!agent) {
-        // setLoggedIn(!loggedIn);
-        console.log("validate init");
-        agentInstance = await ValidateUser(loggedIn);
-        setAgent(agentInstance.agent);
-        console.log("agent instance vayo");
+        try {
+          console.log("Validating user...");
+          const { agent: baseAgent } = await ValidateUser(loggedIn);
+
+          // Wrap the base agent with RateLimitedAgent
+          const rateLimitedAgent = new RateLimitedAgent(baseAgent);
+
+          setAgent(rateLimitedAgent);
+        } catch (error) {
+          console.error("Validation failed:", error);
+          signOut();
+        }
       }
     };
+
     validate();
-    console.log(agentInstance);
   }, [agent]);
 
   return (
