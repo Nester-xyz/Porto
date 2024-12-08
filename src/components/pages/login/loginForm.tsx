@@ -7,19 +7,23 @@ import { BsFillInfoCircleFill } from "react-icons/bs";
 import { HiEye, HiEyeSlash } from "react-icons/hi2";
 import { Button } from "@/components/ui/button";
 
-type LoginFormProps = {
+interface LoginFormProps {
   onLogin: (userName: string, password: string) => void;
   error: string;
   isLoading: boolean;
-};
+  showTwoFactor: boolean;
+  verificationCode: string;
+  onVerificationCodeChange: (code: string) => void;
+}
 
-const LoginForm = ({ onLogin, error, isLoading }: LoginFormProps) => {
+const LoginForm = ({ onLogin, error, isLoading, showTwoFactor, verificationCode, onVerificationCodeChange }: LoginFormProps) => {
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
   const [showToolTip, setShowToolTip] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = () => {
+    console.log("twoFactorNeeded", showTwoFactor);
     if (userName === "" || password === "") {
       alert("Please fill in both the username and password.");
     } else {
@@ -49,14 +53,16 @@ const LoginForm = ({ onLogin, error, isLoading }: LoginFormProps) => {
             }}
           >
             {/* Error */}
-            <div className="flex flex-col gap-1">
+            <div>
               {error && (
                 <div
                   id="error"
-                  className="mt-1 text-sm text-red-600 bg-red-100 border border-red-400 rounded-md p-2 flex items-center"
+                  className={`mt-1 text-sm border rounded-md p-2 flex gap-2 ${
+                    showTwoFactor ? "bg-yellow-100 border-yellow-400 text-yellow-600" : "bg-red-100 border-red-400 text-red-600"
+                  }`}
                 >
-                  <CgDanger />
-                  {error}
+                  <CgDanger className="flex-shrink-0 mt-1" />
+                  <span>{error}</span>
                 </div>
               )}
             </div>
@@ -80,10 +86,10 @@ const LoginForm = ({ onLogin, error, isLoading }: LoginFormProps) => {
                   Temporary password for third party applications!
                 </div>
               )}
-              <div className="flex justify-start gap-2">
+              <div className="flex items-center gap-1">
                 <Label htmlFor="password">App Password</Label>
                 <div
-                  className="text-sm cursor-pointer"
+                  className="text-sm cursor-pointer flex items-center"
                   onMouseEnter={() => setShowToolTip(true)}
                   onClick={appPasswordRoute}
                   onMouseLeave={() => setShowToolTip(false)}
@@ -113,6 +119,22 @@ const LoginForm = ({ onLogin, error, isLoading }: LoginFormProps) => {
               </div>
             </div>
 
+            {showTwoFactor && (
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="twoFactorCode">Verification Code</Label>
+                <div className="flex items-center border rounded-md px-3">
+                  <Input
+                    id="twoFactorCode"
+                    type="text"
+                    placeholder="Enter the 2FA code from your email"
+                    className="border-none focus-visible:ring-0 p-0"
+                    value={verificationCode}
+                    onChange={(e) => onVerificationCodeChange(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Login Button */}
             <Button
               className="w-full mt-4"
@@ -121,6 +143,9 @@ const LoginForm = ({ onLogin, error, isLoading }: LoginFormProps) => {
             >
               Login
             </Button>
+
+            <button type="submit" disabled={isLoading}>
+      </button>
           </form>
         </CardContent>
       </Card>
