@@ -25,7 +25,7 @@ jobs:
     - name: Extract Extension Version
       id: package-version
       run: |
-        VERSION=$(grep '"version":' manifest.json | cut -d'"' -f4)
+        VERSION=$(grep '"version":' public/manifest.json | cut -d'"' -f4)
         echo "version=$VERSION" >> $GITHUB_OUTPUT
     
     - name: Build extension
