@@ -22,18 +22,24 @@ jobs:
     - name: Install dependencies
       run: npm ci
     
+    - name: Extract Extension Version
+      id: package-version
+      run: |
+        VERSION=$(grep '"version":' manifest.json | cut -d'"' -f4)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+    
     - name: Build extension
       run: npm run build
     
     - name: Create ZIP package
       run: |
         cd dist
-        zip -r chrome-extension.zip .
+        zip -r porto-extension-v${{ steps.package-version.outputs.version }}.zip .
     
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/porto-extension.zip
-        tag_name: v${{ github.sha }}
+        files: dist/porto-extension-v${{ steps.package-version.outputs.version }}.zip
+        tag_name: v${{ steps.package-version.outputs.version }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
