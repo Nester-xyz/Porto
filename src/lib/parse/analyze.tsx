@@ -17,7 +17,6 @@ export const isQuote = (tweets: Tweet[], id: string) => {
 
 export const isPostValid = (tweet: Tweet["tweet"]) => {
   if (
-    tweet.in_reply_to_screen_name ||
     tweet.full_text.startsWith("@") ||
     tweet.full_text.startsWith("RT ")
   ) {
@@ -40,8 +39,14 @@ export const sortTweetsWithDateRange = (
       return true;
     })
     .sort((a, b) => {
-      return (
+      const dateComparison =
         new Date(a.tweet.created_at).getTime() -
-        new Date(b.tweet.created_at).getTime()
-      );
+        new Date(b.tweet.created_at).getTime();
+
+      // If dates are the same, use tweet ID as a secondary sorting criterion
+      if (dateComparison === 0) {
+        return parseInt(a.tweet.id) - parseInt(b.tweet.id);
+      }
+
+      return dateComparison;
     });

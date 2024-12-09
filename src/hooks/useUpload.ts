@@ -78,6 +78,9 @@ export const useUpload = ({
     embeddedVideo: any,
     embeddedRecord: any,
     externalEmbed: any,
+    replyTo: any,
+    validTweets: any,
+    index: number
   ) => {
     if (!agent) return;
     let postText = await cleanTweetText(tweet.full_text);
@@ -101,8 +104,6 @@ export const useUpload = ({
       createdAt: tweetCreatedAt,
     };
 
-    console.log(postRecord);
-
     // Merge any additional embed data
     const embed = getMergeEmbed(embeddedImage, embeddedVideo, embeddedRecord);
     if (embed && Object.keys(embed).length > 0) {
@@ -111,15 +112,28 @@ export const useUpload = ({
       Object.assign(postRecord, { embed: externalEmbed });
     }
 
-    await new Promise((resolve) => setTimeout(resolve, ApiDelay)); // Throttle API calls
-    const recordData = await agent?.post(postRecord);
-    const postRkey = recordData?.uri.split("/").pop();
-    if (postRkey) {
-      const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}.bsky.social/post/${postRkey}`;
-      console.log("Bluesky post created:", postRecord.text);
-      console.log(postUri);
+    if (replyTo && Object.keys(replyTo).length > 0) {
+      Object.assign(postRecord, { reply: replyTo });
     }
-  };
+    await new Promise((resolve) => setTimeout(resolve, ApiDelay)); // Throttle API calls
+    try {
+      const recordData = await agent?.post(postRecord);
+      const i = recordData.uri.lastIndexOf("/");
+      if (i > 0) {
+
+        const postRkey = recordData?.uri.split("/").pop();
+        const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}.bsky.social/post/${postRkey}`;
+        console.log("Bluesky post created:", postRecord.text);
+        console.log(postUri);
+      }
+      validTweets[index].bsky = {
+        uri: recordData.uri,
+        cid: recordData.cid,
+      };
+    } catch (error: any) {
+      console.warn(`Error posting tweet: ${postRecord} ${error.message}`);
+    }
+  }
 
   const tweet_to_bsky = async () => {
     if (!agent) throw new Error("Agent not found");
@@ -157,6 +171,19 @@ export const useUpload = ({
               if (mediaEmbed) embeddedImage.push(mediaEmbed);
               if (embeddedImage.length >= 4) break; // Limit to 4 images
             }
+          }
+          if (tweet.in_reply_to_screen_name) {
+            if (tweet.in_reply_to_screen_name == "whoisanku") {
+              // Remove "@screen_name" from the beginning of the tweet's full text
+              const replyPrefix = `@${tweet.in_reply_to_screen_name} `;
+              tweet.full_text = tweet.full_text.replace(replyPrefix, '').trim();
+            } else {
+              console.log("Discarded (reply to another user)");
+              continue;
+            }
+          } else if (tweet.in_reply_to_user_id !== undefined) {
+            console.log("Discarded (reply to a former user)");
+            continue;
           }
 
           console.log(media?.[0]?.type);
@@ -300,6 +327,84 @@ export const useUpload = ({
             validTweets,
           );
 
+          let replyTo: {} | null = null;
+
+          function getReplyRefs(
+            twitterHandles: string[],
+            tweetData: {
+              in_reply_to_screen_name?: string;
+              in_reply_to_status_id?: string;
+            },
+            tweets: Array<{ tweet: any; bsky?: { uri: string; cid: string } }>
+          ): {
+            root: {
+              uri: string;
+              cid: string;
+            };
+            parent: {
+              uri: string;
+              cid: string;
+            };
+          } | null {
+            const { in_reply_to_screen_name, in_reply_to_status_id } = tweetData;
+
+            // Validate reply screen name
+            if (!in_reply_to_screen_name ||
+              !twitterHandles.some(handle => handle === in_reply_to_screen_name)) {
+              console.log(
+                `Skip Reply (wrong reply screen name: ${in_reply_to_screen_name})`,
+                twitterHandles
+              );
+              return null;
+            }
+
+            // Find the immediate parent tweet
+            const parent = tweets.find(({ tweet }) => tweet.id === in_reply_to_status_id);
+
+            // If no parent found, return null
+            if (!parent) {
+              console.log(`No parent tweet found for ID: ${in_reply_to_status_id}`);
+              return null;
+            }
+
+            // Find the root of the thread
+            let root = parent;
+            while (root?.tweet?.in_reply_to_status_id) {
+              const nextRoot = tweets.find(
+                ({ tweet }) => tweet.id === root.tweet.in_reply_to_status_id
+              );
+
+              if (!nextRoot) break;
+              root = nextRoot;
+            }
+
+            // Validate Bluesky metadata
+            if (!parent.bsky || !root.bsky) {
+              console.log('Missing Bluesky metadata for parent or root tweet');
+              return null;
+            }
+
+            return {
+              root: {
+                uri: root.bsky.uri,
+                cid: root.bsky.cid,
+              },
+              parent: {
+                uri: parent.bsky.uri,
+                cid: parent.bsky.cid,
+              }
+            };
+          }
+          if (tweet.in_reply_to_screen_name) {
+            replyTo = getReplyRefs(
+              twitterHandles,
+              {
+                in_reply_to_screen_name: tweet.in_reply_to_screen_name,
+                in_reply_to_status_id: tweet.in_reply_to_status_id
+              },
+              validTweets
+            );
+          }
           let externalEmbed = null;
 
           // Other than t.co url within full text
@@ -351,7 +456,7 @@ export const useUpload = ({
 
           tweet.full_text = removeUrlsFromText(tweet.full_text);
 
-          await createPostRecord(tweet, embeddedImage, embeddedVideo, embeddedRecord, externalEmbed).then(() => {
+          await createPostRecord(tweet, embeddedImage, embeddedVideo, embeddedRecord, externalEmbed, replyTo, validTweets, index).then(() => {
             importedTweet++;
           });
         } catch (error) {

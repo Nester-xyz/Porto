@@ -11,8 +11,9 @@ export const processTweetsData = async (
   tweets: Tweet[];
   validTweets: Tweet[];
 }> => {
+
   const content = await tweetsFile.text();
-  const tweets: Tweet[] = MinifyTweet(parseTweetsFile(content));
+  const tweets: Tweet[] = parseTweetsFile(content);
   const validTweets: Tweet[] = sortTweetsWithDateRange(tweets, dateRange);
 
   return {
