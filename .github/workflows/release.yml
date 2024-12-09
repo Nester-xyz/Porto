@@ -27,13 +27,13 @@ jobs:
     
     - name: Create ZIP package
       run: |
-        mkdir -p dist
-        zip -r dist/chrome-extension.zip ./build
+        cd dist
+        zip -r chrome-extension.zip .
     
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/chrome-extension.zip
+        files: dist/porto-extension.zip
         tag_name: v${{ github.sha }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
