@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useLogInContext } from "./LogInContext";
 import { shareableData } from "@/types/render";
 import {
@@ -13,6 +13,7 @@ import { processTweetsData } from "@/lib/parse/processTweets";
 import { getMergeEmbed, fetchEmbedUrlCard, getEmbeddedUrlAndRecord } from "@/components/utils";
 import { ApiDelay, BLUESKY_USERNAME } from "@/lib/constant";
 import AtpAgent, { AppBskyVideoDefs, BlobRef, RichText } from "@atproto/api";
+import { findFileFromMap } from "@/lib/parse/parse";
 
 export const filePassableType = (fileType: string = ""): string => {
   if (fileType === "png") return "image/png";
@@ -134,6 +135,36 @@ export const useUpload = ({
       console.warn(`Error posting tweet: ${postRecord} ${error.message}`);
     }
   }
+  const getXHandle = async () => {
+    const findProfileFile = (fileName: string) => {
+      for (const [path, file] of fileMap.entries()) {
+        if (path.includes(fileName)) {
+          return file;
+        }
+      }
+      return null;
+    };
+    const accountFile = findProfileFile("data/account.js");
+    if (!accountFile) console.log("Username is required but missing account.js file");
+    // If account.js found do this
+    const accountContent = await accountFile!.text();
+    console.log("Raw profile content:", accountContent.substring(0, 200));
+    let accountJson;
+    try {
+      // Remove 'window.YTD.account.part0 = ' and parse the remaining array
+      const cleanContent = accountContent
+        .replace(/window\.YTD\.account\.part0 = /, '')
+        .trim();
+      const accountArray = JSON.parse(cleanContent);
+      accountJson = accountArray[0].account; // Access the first account object
+    } catch (e) {
+      console.error("Failed to parse profile data:", e);
+      throw new Error('Failed to parse profile data from file');
+    }
+    console.log(accountJson.username)
+
+    return accountJson.username;
+  }
 
   const tweet_to_bsky = async () => {
     if (!agent) throw new Error("Agent not found");
@@ -155,6 +186,9 @@ export const useUpload = ({
       );
 
       let importedTweet = 0;
+      const handle = await getXHandle();
+      console.log(handle);
+      const twitterHandles = [handle.length !== 0 ? handle : "whoisanku"];
 
       for (const [index, { tweet }] of validTweets.entries()) {
         try {
@@ -173,7 +207,7 @@ export const useUpload = ({
             }
           }
           if (tweet.in_reply_to_screen_name) {
-            if (tweet.in_reply_to_screen_name == "whoisanku") {
+            if (tweet.in_reply_to_screen_name == twitterHandles[0]) {
               // Remove "@screen_name" from the beginning of the tweet's full text
               const replyPrefix = `@${tweet.in_reply_to_screen_name} `;
               tweet.full_text = tweet.full_text.replace(replyPrefix, '').trim();
@@ -319,7 +353,6 @@ export const useUpload = ({
             console.log("Skipping non-photo, non-video media type:", media?.[0]?.type);
           }
 
-          const twitterHandles = ['whoisanku'];
 
           const { embeddedUrl = null, embeddedRecord = null } = getEmbeddedUrlAndRecord(
             twitterHandles,
