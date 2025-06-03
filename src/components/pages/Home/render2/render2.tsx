@@ -2,18 +2,31 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useUpload } from "@/hooks/useUpload";
 import { Render2Props } from "@/types/render";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const RenderStep2: React.FC<Render2Props> = ({
   setCurrentStep,
   shareableData,
 }) => {
-  const { totalTweets, validTweets } = shareableData;
+  const { totalTweets, validTweets, validTweetsData } = shareableData;
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (validTweetsData) {
+      setSelectedIds(validTweetsData.map((t) => t.tweet.id));
+    }
+  }, [validTweetsData]);
   const { isProcessing, progress, tweet_to_bsky } = useUpload({
     shareableData,
   });
 
-  const emailConfirmed = localStorage.getItem('emailConfirmed')
+  const emailConfirmed = localStorage.getItem("emailConfirmed");
+
+  const toggleId = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
+  };
 
   useEffect(() => {
     if (isProcessing == false && progress == 100) {
@@ -23,9 +36,13 @@ const RenderStep2: React.FC<Render2Props> = ({
 
   return (
     <div className="space-y-6">
-      {emailConfirmed === 'false' && (
-        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4" role="alert">
-          Your videos are excluded because you haven't confirmed your email on Bluesky.
+      {emailConfirmed === "false" && (
+        <div
+          className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4"
+          role="alert"
+        >
+          Your videos are excluded because you haven't confirmed your email on
+          Bluesky.
         </div>
       )}
       <div className="grid gap-4">
@@ -45,6 +62,28 @@ const RenderStep2: React.FC<Render2Props> = ({
           </div>
         </Card>
 
+        {validTweetsData && (
+          <Card className="p-4 max-h-60 overflow-y-auto">
+            <h3 className="font-semibold mb-2">
+              Select Tweets ({selectedIds.length})
+            </h3>
+            <div className="space-y-2">
+              {validTweetsData.map((t) => (
+                <label key={t.tweet.id} className="flex items-start space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(t.tweet.id)}
+                    onChange={() => toggleId(t.tweet.id)}
+                  />
+                  <span className="text-sm text-gray-700">
+                    {t.tweet.full_text}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </Card>
+        )}
+
         <div className="space-y-4">
           {isProcessing && (
             <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -61,13 +100,13 @@ const RenderStep2: React.FC<Render2Props> = ({
               }}
               variant="outline"
               className="flex-1"
-              disabled={isProcessing}
+              disabled={isProcessing || selectedIds.length === 0}
             >
               Back
             </Button>
             <Button
               onClick={() => {
-                tweet_to_bsky();
+                tweet_to_bsky(selectedIds);
               }}
               className="flex-1"
               disabled={isProcessing}

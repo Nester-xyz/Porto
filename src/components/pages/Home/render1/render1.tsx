@@ -31,6 +31,7 @@ const RenderStep1: React.FC<Render1Props> = ({
         validTweets: validTweets?.length ?? 0,
         tweetsLocation: fileState.tweetsLocation!,
         mediaLocation: fileState.mediaLocation!,
+        validTweetsData: validTweets ?? [],
       };
 
       setCurrentStep(2);

@@ -1,3 +1,5 @@
+import { Tweet } from "./tweets";
+
 export interface shareableData {
   fileMap: Map<string, File>;
   totalTweets: number;
@@ -5,6 +7,7 @@ export interface shareableData {
   tweetsLocation: string;
   mediaLocation: string;
   dateRange: TDateRange;
+  validTweetsData?: Tweet[];
 }
 
 export interface Render1Props {
