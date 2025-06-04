@@ -86,7 +86,7 @@ const RenderStep2: React.FC<Render2Props> = ({
             />
             <div className="space-y-2">
               {displayTweets.map((t) => (
-                <label key={t.tweet.id} className="flex items-center space-x-2">
+                <label key={t.tweet.id} className="flex items-start space-x-2">
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(t.tweet.id)}
