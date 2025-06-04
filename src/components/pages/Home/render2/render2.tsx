@@ -1,59 +1,57 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useUpload } from "@/hooks/useUpload";
 import { Render2Props } from "@/types/render";
 import { useEffect, useState } from "react";
 
 const RenderStep2: React.FC<Render2Props> = ({
   setCurrentStep,
   shareableData,
+  setShareableData,
 }) => {
-  const { totalTweets, validTweets, validTweetsData } = shareableData;
+  const { totalTweets, validTweets, validTweetsData, selectedTweetIds } =
+    shareableData;
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(50);
 
   useEffect(() => {
-    if (validTweetsData) {
+    if (selectedTweetIds && selectedTweetIds.length > 0) {
+      setSelectedIds(selectedTweetIds);
+    } else if (validTweetsData) {
       setSelectedIds(validTweetsData.map((t) => t.tweet.id));
     }
-  }, [validTweetsData]);
-  const { isProcessing, progress, tweet_to_bsky } = useUpload({
-    shareableData,
-  });
+  }, [validTweetsData, selectedTweetIds]);
 
   const emailConfirmed = localStorage.getItem("emailConfirmed");
 
   const toggleId = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
+            <div className="flex mb-2 space-x-2">
+              <input
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setVisibleCount(50);
+                }}
+                placeholder="Search tweets..."
+                className="flex-1 px-2 py-1 border rounded"
+              />
+              <Button
+                variant="outline"
+                onClick={() => setSelectedIds([])}
+                disabled={selectedIds.length === 0}
+              >
+                Deselect All
+              </Button>
+            </div>
 
-  const filteredTweets =
-    validTweetsData?.filter((t) =>
-      t.tweet.full_text.toLowerCase().includes(query.toLowerCase())
-    ) ?? [];
-  const displayTweets = filteredTweets.slice(0, visibleCount);
-
-  useEffect(() => {
-    if (isProcessing == false && progress == 100) {
-      setCurrentStep(3);
-    }
-  }, [isProcessing, progress]);
-
-  return (
-    <div className="space-y-6">
-      {emailConfirmed === "false" && (
-        <div
-          className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4"
-          role="alert"
-        >
-          Your videos are excluded because you haven't confirmed your email on
-          Bluesky.
-        </div>
-      )}
-      <div className="grid gap-4">
+                setShareableData({
+                  ...shareableData,
+                  selectedTweetIds: selectedIds,
+                });
+                setCurrentStep(3);
+              disabled={selectedIds.length === 0}
+              Next
         <Card className="p-4">
           <h3 className="font-semibold mb-2">Tweet Analysis</h3>
           <div className="space-y-2">

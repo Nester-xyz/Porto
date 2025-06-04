@@ -8,6 +8,7 @@ export interface shareableData {
   mediaLocation: string;
   dateRange: TDateRange;
   validTweetsData?: Tweet[];
+  selectedTweetIds: string[];
 }
 
 export interface Render1Props {
@@ -17,12 +18,12 @@ export interface Render1Props {
 
 export interface Render2Props {
   shareableData: shareableData;
+  setShareableData: (data: shareableData) => void;
   setCurrentStep: (step: number) => void;
 }
 
 export interface Render3Props {
-  totalTweets: number;
-  validTweets: number;
+  shareableData: shareableData;
   setCurrentStep: (step: number) => void;
 }
 
