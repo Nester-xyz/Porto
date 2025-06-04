@@ -4,17 +4,15 @@ import { BLUESKY_USERNAME } from "@/lib/constant";
 import { Render3Props } from "@/types/render";
 import { CheckCircle } from "lucide-react";
 
+const RenderStep3: React.FC<Render3Props> = ({
+  shareableData,
+  setCurrentStep,
+}) => {
   const { totalTweets, validTweetsData, selectedTweetIds } = shareableData;
   const importedCount = selectedTweetIds.length
     ? selectedTweetIds.length
-    : validTweetsData?.length ?? 0;
+    : (validTweetsData?.length ?? 0);
   const skippedCount = totalTweets - importedCount;
-            Successfully imported: {importedCount}
-            Skipped: {skippedCount} (unselected or invalid)
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -38,11 +36,10 @@ import { CheckCircle } from "lucide-react";
               Total tweets found: {totalTweets}
             </p>
             <p className="text-sm text-gray-600">
-              Successfully imported: {validTweets}
+              Successfully imported: {importedCount}
             </p>
             <p className="text-sm text-gray-600">
-              Skipped: {totalTweets - validTweets} (retweets, replies, or
-              outside date range)
+              Skipped: {skippedCount} (unselected or invalid)
             </p>
           </div>
         </Card>
@@ -67,9 +64,7 @@ import { CheckCircle } from "lucide-react";
 
         <div className="flex space-x-4 mt-4">
           <Button
-            onClick={() => {
-              setCurrentStep(1);
-            }}
+            onClick={() => setCurrentStep(1)}
             variant="outline"
             className="flex-1"
           >
@@ -91,4 +86,5 @@ import { CheckCircle } from "lucide-react";
     </div>
   );
 };
+
 export default RenderStep3;
