@@ -28,4 +28,6 @@ export const initialShareableData = {
   tweetsLocation: "",
   mediaLocation: "",
   dateRange: intialDate,
+  validTweetsData: [],
+  selectedTweetIds: [],
 };
