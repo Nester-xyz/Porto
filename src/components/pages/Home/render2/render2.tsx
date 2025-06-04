@@ -10,6 +10,8 @@ const RenderStep2: React.FC<Render2Props> = ({
 }) => {
   const { totalTweets, validTweets, validTweetsData } = shareableData;
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(50);
 
   useEffect(() => {
     if (validTweetsData) {
@@ -27,6 +29,12 @@ const RenderStep2: React.FC<Render2Props> = ({
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
+
+  const filteredTweets =
+    validTweetsData?.filter((t) =>
+      t.tweet.full_text.toLowerCase().includes(query.toLowerCase()),
+    ) ?? [];
+  const displayTweets = filteredTweets.slice(0, visibleCount);
 
   useEffect(() => {
     if (isProcessing == false && progress == 100) {
@@ -67,9 +75,18 @@ const RenderStep2: React.FC<Render2Props> = ({
             <h3 className="font-semibold mb-2">
               Select Tweets ({selectedIds.length})
             </h3>
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setVisibleCount(50);
+              }}
+              placeholder="Search tweets..."
+              className="w-full mb-2 px-2 py-1 border rounded"
+            />
             <div className="space-y-2">
-              {validTweetsData.map((t) => (
-                <label key={t.tweet.id} className="flex items-start space-x-2">
+              {displayTweets.map((t) => (
+                <label key={t.tweet.id} className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(t.tweet.id)}
@@ -81,6 +98,16 @@ const RenderStep2: React.FC<Render2Props> = ({
                 </label>
               ))}
             </div>
+            {filteredTweets.length > visibleCount && (
+              <div className="mt-2 flex justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((c) => c + 50)}
+                >
+                  Load More
+                </Button>
+              </div>
+            )}
           </Card>
         )}
 
