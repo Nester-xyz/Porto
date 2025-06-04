@@ -26,13 +26,13 @@ const RenderStep2: React.FC<Render2Props> = ({
 
   const toggleId = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
   };
 
   const filteredTweets =
     validTweetsData?.filter((t) =>
-      t.tweet.full_text.toLowerCase().includes(query.toLowerCase()),
+      t.tweet.full_text.toLowerCase().includes(query.toLowerCase())
     ) ?? [];
   const displayTweets = filteredTweets.slice(0, visibleCount);
 
@@ -89,6 +89,7 @@ const RenderStep2: React.FC<Render2Props> = ({
                 <label key={t.tweet.id} className="flex items-start space-x-2">
                   <input
                     type="checkbox"
+                    className="mt-1"
                     checked={selectedIds.includes(t.tweet.id)}
                     onChange={() => toggleId(t.tweet.id)}
                   />
