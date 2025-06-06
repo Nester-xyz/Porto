@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import DateRangePicker from "@/components/DateRangePicker";
-import FileFoundCard from "@/components/FileFoundCard";
 import { Render1Props, TDateRange } from "@/types/render";
 import { initialFileState, intialDate, TWEETS_FILENAME } from "@/lib/constant";
 import FileUpload from "./fileUpload";
-import { UseFileUpload } from "@/hooks/useFileUpload";
+import { useFileUpload } from "@/hooks/useFileUpload";
 import { useAnalysis } from "@/hooks/useAnalysis";
 
 const RenderStep1: React.FC<Render1Props> = ({
@@ -14,12 +13,12 @@ const RenderStep1: React.FC<Render1Props> = ({
 }) => {
   const [dateRange, setDateRange] = useState<TDateRange>(intialDate);
 
-  const { fileState, handleFileUpload, isFilePresent } =
-    UseFileUpload(initialFileState);
+  const { fileState, onFilesChange, targetFileFound, setTargetFileFound } =
+    useFileUpload(initialFileState);
 
   const { analysisProgress, tweets, validTweets } = useAnalysis(
     fileState,
-    dateRange,
+    dateRange
   );
 
   const analyzeTweets = async () => {
@@ -45,28 +44,20 @@ const RenderStep1: React.FC<Render1Props> = ({
   return (
     <div className="space-y-6">
       <div className="space-y-6">
-        <FileUpload handleFileUpload={handleFileUpload} />
+        <FileUpload
+          onFilesChange={onFilesChange}
+          targetFileName={TWEETS_FILENAME}
+          onTargetFileFound={setTargetFileFound}
+        />
 
-        {fileState.files && fileState.files.length > 0 && (
-          <div className="mt-2">
-            <p className="text-sm text-muted-foreground mb-2">
-              {fileState.files.length} files selected
-            </p>
-            <FileFoundCard
-              cardName="tweets.js"
-              found={isFilePresent(TWEETS_FILENAME)}
-            />
-          </div>
-        )}
-
-        <div className="bg-card rounded-lg shadow-sm">
+        <div className="rounded-lg dark:bg-card dark:shadow-sm">
           <DateRangePicker dateRange={dateRange} setDateRange={setDateRange} />
         </div>
 
         <Button
           onClick={analyzeTweets}
           className="w-full"
-          disabled={!isFilePresent("tweets.js") || analysisProgress}
+          disabled={!targetFileFound || !!analysisProgress}
         >
           {analysisProgress ? "Analyzing..." : "Analyze Tweets"}
         </Button>

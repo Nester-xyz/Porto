@@ -1,51 +1,81 @@
-import { SiTicktick } from "react-icons/si";
+import React from "react";
+import { UploadCloud, Check, Settings, PartyPopper } from "lucide-react";
 
-const Steps = ({ currentStep }: { currentStep: number }) => {
+type StepProps = {
+  step: number;
+  currentStep: number;
+  title: string;
+  icon: React.ReactNode;
+};
+
+const Step = ({ step, currentStep, title, icon }: StepProps) => {
+  const isActive = currentStep === step;
+  const isCompleted = currentStep > step;
+
   return (
-    <div className="flex items-center justify-center mb-4">
-      <div className="flex items-center">
+    <div className="flex items-center">
+      <div
+        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors duration-300 ${
+          isCompleted
+            ? "bg-green-500 text-white"
+            : isActive
+              ? "bg-blue-600 text-white"
+              : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+        }`}
+      >
+        {isCompleted ? <Check className="w-6 h-6" /> : icon}
+      </div>
+      <div className="ml-4">
         <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            currentStep >= 1
-              ? "bg-blue-600 text-white dark:bg-blue-500"
-              : "bg-gray-200 dark:bg-gray-700"
+          className={`text-sm font-medium ${
+            isActive || isCompleted
+              ? "text-gray-900 dark:text-gray-100"
+              : "text-gray-500 dark:text-gray-400"
           }`}
         >
-          1
-        </div>
-        <div
-          className={`w-16 h-1 ${
-            currentStep >= 2
-              ? "bg-blue-600 dark:bg-blue-500"
-              : "bg-gray-200 dark:bg-gray-700"
-          }`}
-        />
-        <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            currentStep >= 2
-              ? "bg-blue-600 text-white dark:bg-blue-500"
-              : "bg-gray-200 dark:bg-gray-700"
-          }`}
-        >
-          2
-        </div>
-        <div
-          className={`w-16 h-1 ${
-            currentStep === 3
-              ? "bg-blue-600 dark:bg-blue-500"
-              : "bg-gray-200 dark:bg-gray-700"
-          }`}
-        />
-        <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            currentStep === 3
-              ? "bg-green-600 text-white dark:bg-green-500"
-              : "bg-gray-200 dark:bg-gray-700"
-          }`}
-        >
-          <SiTicktick />
+          {title}
         </div>
       </div>
+    </div>
+  );
+};
+
+const Steps = ({ currentStep }: { currentStep: number }) => {
+  const steps = [
+    {
+      step: 1,
+      title: "Upload",
+      icon: <UploadCloud className="w-6 h-6" />,
+    },
+    {
+      step: 2,
+      title: "Customize",
+      icon: <Settings className="w-6 h-6" />,
+    },
+    { step: 3, title: "Finish", icon: <PartyPopper className="w-6 h-6" /> },
+  ];
+
+  return (
+    <div className="flex items-center justify-between w-full mb-8">
+      {steps.map((s, index) => (
+        <React.Fragment key={s.step}>
+          <Step
+            step={s.step}
+            currentStep={currentStep}
+            title={s.title}
+            icon={s.icon}
+          />
+          {index < steps.length - 1 && (
+            <div
+              className={`flex-1 h-1 mx-4 rounded-full ${
+                currentStep > s.step
+                  ? "bg-green-500"
+                  : "bg-gray-200 dark:bg-gray-700"
+              }`}
+            />
+          )}
+        </React.Fragment>
+      ))}
     </div>
   );
 };

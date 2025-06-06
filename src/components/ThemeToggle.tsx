@@ -6,7 +6,9 @@ const ThemeToggle = () => {
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    ).matches;
     const isDark = stored === "dark" || (!stored && prefersDark);
     setEnabled(isDark);
     if (isDark) {

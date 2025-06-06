@@ -41,7 +41,7 @@ const LoginForm = ({
   const appPasswordRoute = () => {
     window.open(
       "https://github.com/bluesky-social/atproto-ecosystem/blob/main/app-passwords.md",
-      "_blank",
+      "_blank"
     );
   };
 
@@ -77,7 +77,7 @@ const LoginForm = ({
             </div>
             {/* Username Input */}
             <div className="flex flex-col gap-1">
-              <Label htmlFor="userName">UserName</Label>
+              <Label htmlFor="userName">Username</Label>
               <Input
                 id="userName"
                 type="text"

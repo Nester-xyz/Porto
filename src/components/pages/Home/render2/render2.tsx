@@ -35,13 +35,13 @@ const RenderStep2: React.FC<Render2Props> = ({
 
   const toggleId = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
   };
 
   const filteredTweets =
     validTweetsData?.filter((t) =>
-      t.tweet.full_text.toLowerCase().includes(query.toLowerCase()),
+      t.tweet.full_text.toLowerCase().includes(query.toLowerCase())
     ) || [];
 
   const displayTweets = filteredTweets.slice(0, visibleCount);
@@ -72,7 +72,7 @@ const RenderStep2: React.FC<Render2Props> = ({
             setVisibleCount(50);
           }}
           placeholder="Search tweets..."
-          className="flex-1 px-2 py-1 border rounded"
+          className="flex-1 dark:bg-gray-800 px-2 py-1 border rounded-md"
         />
         <Button
           variant="outline"

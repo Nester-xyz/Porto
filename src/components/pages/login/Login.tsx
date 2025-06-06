@@ -19,22 +19,29 @@ const Login = () => {
       const user = await agent.login({
         identifier: userName,
         password: password,
-        authFactorToken: verificationCode
+        authFactorToken: verificationCode,
       });
 
       if (user.success) {
         setLoggedIn(true);
-        localStorage.setItem('emailConfirmed', String(user.data.emailConfirmed));
+        localStorage.setItem(
+          "emailConfirmed",
+          String(user.data.emailConfirmed)
+        );
         console.info("User logged in successfully");
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      
+
       // Check for the specific error message from Bluesky API
-      if (error?.message?.includes("A sign in code has been sent") || 
-          error?.cause?.message?.includes("A sign in code has been sent")) {
+      if (
+        error?.message?.includes("A sign in code has been sent") ||
+        error?.cause?.message?.includes("A sign in code has been sent")
+      ) {
         setShowTwoFactor(true);
-        setError("A sign-in code has been sent to your email. Please enter it below.");
+        setError(
+          "A sign-in code has been sent to your email. Please enter it below."
+        );
       } else {
         setError("Invalid username or password");
       }

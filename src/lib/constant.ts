@@ -4,7 +4,7 @@ export const TWEETS_FILENAME = "tweets.js";
 export const TWEETS_MEDIA_FOLDER = "tweets_media";
 
 export const initialFileState = {
-  files: null as FileList | null,
+  files: null as File[] | null,
   fileMap: new Map<string, File>(),
   tweetsLocation: null as string | null,
   mediaLocation: null as string | null,

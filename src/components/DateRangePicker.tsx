@@ -15,7 +15,7 @@ const DateRangePicker = ({
 }) => {
   const [startDate, setStartDate] = useState(dateRange.min_date ?? new Date());
   const [endDate, setEndDate] = useState<Date | undefined>(
-    dateRange.max_date ?? new Date(),
+    dateRange.max_date ?? new Date()
   );
 
   useEffect(() => {
@@ -40,6 +40,7 @@ const DateRangePicker = ({
             setEndDate(end ?? undefined);
           }}
           maxDate={new Date()}
+          className="w-48"
           startDate={startDate}
           endDate={endDate}
           selectsRange
