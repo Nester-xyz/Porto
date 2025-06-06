@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import DateRangePicker from "@/components/DateRangePicker";
+import { Calendar28 } from "@/components/DateRangePicker";
 import { Render1Props, TDateRange } from "@/types/render";
 import { initialFileState, intialDate, TWEETS_FILENAME } from "@/lib/constant";
 import FileUpload from "./fileUpload";
@@ -51,7 +51,10 @@ const RenderStep1: React.FC<Render1Props> = ({
         />
 
         <div className="rounded-lg dark:bg-card dark:shadow-sm">
-          <DateRangePicker dateRange={dateRange} setDateRange={setDateRange} />
+          <Calendar28
+            initialDate={dateRange}
+            onDateChange={(newDateRange) => setDateRange(newDateRange)}
+          />
         </div>
 
         <Button

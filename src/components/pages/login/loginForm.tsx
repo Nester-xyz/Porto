@@ -106,11 +106,11 @@ const LoginForm = ({
                   <BsFillInfoCircleFill />
                 </div>
               </div>
-              <div className="flex items-center border rounded-md px-3 ">
+              <div className="mt-1 flex items-center border rounded-md px-3 ">
                 <Input
                   type={showPassword ? "text" : "password"}
                   id="password"
-                  className=" border-none focus-visible:ring-0 p-0"
+                  className="border-none focus-visible:ring-0 p-0"
                   placeholder="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
