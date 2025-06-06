@@ -49,7 +49,7 @@ const RenderStep1: React.FC<Render1Props> = ({
 
         {fileState.files && fileState.files.length > 0 && (
           <div className="mt-2">
-            <p className="text-sm text-gray-600 mb-2">
+            <p className="text-sm text-muted-foreground mb-2">
               {fileState.files.length} files selected
             </p>
             <FileFoundCard
@@ -59,7 +59,7 @@ const RenderStep1: React.FC<Render1Props> = ({
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-card rounded-lg shadow-sm">
           <DateRangePicker dateRange={dateRange} setDateRange={setDateRange} />
         </div>
 

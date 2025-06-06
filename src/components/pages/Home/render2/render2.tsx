@@ -35,13 +35,13 @@ const RenderStep2: React.FC<Render2Props> = ({
 
   const toggleId = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
     );
   };
 
   const filteredTweets =
     validTweetsData?.filter((t) =>
-      t.tweet.full_text.toLowerCase().includes(query.toLowerCase())
+      t.tweet.full_text.toLowerCase().includes(query.toLowerCase()),
     ) || [];
 
   const displayTweets = filteredTweets.slice(0, visibleCount);
@@ -51,13 +51,13 @@ const RenderStep2: React.FC<Render2Props> = ({
       <Card className="p-4">
         <h3 className="font-semibold mb-2">Tweet Analysis</h3>
         <div className="space-y-2">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Total tweets found: {totalTweets}
           </p>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Valid tweets to import: {validTweets}
           </p>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Excluded: {totalTweets - validTweets} (quotes, retweets, replies, or
             outside date range)
           </p>
@@ -102,9 +102,7 @@ const RenderStep2: React.FC<Render2Props> = ({
                   checked={selectedIds.includes(t.tweet.id)}
                   onChange={() => toggleId(t.tweet.id)}
                 />
-                <span className="text-sm text-gray-700">
-                  {t.tweet.full_text}
-                </span>
+                <span className="text-sm">{t.tweet.full_text}</span>
               </label>
             ))}
           </div>
@@ -122,7 +120,7 @@ const RenderStep2: React.FC<Render2Props> = ({
       )}
 
       {isProcessing && (
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
+        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
           <div
             className="bg-blue-600 h-2.5 rounded-full"
             style={{ width: `${progress}%` }}

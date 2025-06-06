@@ -21,10 +21,10 @@ const RenderStep3: React.FC<Render3Props> = ({
           <div className="flex justify-center mb-4">
             <CheckCircle className="w-16 h-16 text-green-500" />
           </div>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+          <h2 className="text-2xl font-semibold text-foreground mb-2">
             Import Complete!
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-muted-foreground mb-6">
             Your tweets have been successfully imported to Bluesky
           </p>
         </div>
@@ -32,22 +32,22 @@ const RenderStep3: React.FC<Render3Props> = ({
         <Card className="p-4">
           <h3 className="font-semibold mb-2">Import Summary</h3>
           <div className="space-y-2">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Total tweets found: {totalTweets}
             </p>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Successfully imported: {importedCount}
             </p>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted-foreground">
               Skipped: {skippedCount} (unselected or invalid)
             </p>
           </div>
         </Card>
 
-        <Card className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-none">
+        <Card className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-none">
           <div className="text-center space-y-4">
-            <h3 className="font-semibold text-gray-900">Support Our Work</h3>
-            <p className="text-sm text-gray-600">
+            <h3 className="font-semibold text-foreground">Support Our Work</h3>
+            <p className="text-sm text-muted-foreground">
               If you found this tool helpful, consider supporting us to keep it
               free and maintained
             </p>
@@ -74,7 +74,7 @@ const RenderStep3: React.FC<Render3Props> = ({
             onClick={() =>
               window.open(
                 `https://bsky.app/profile/${BLUESKY_USERNAME}.bsky.social`,
-                "_blank"
+                "_blank",
               )
             }
             className="flex-1 bg-blue-600 hover:bg-blue-700"
