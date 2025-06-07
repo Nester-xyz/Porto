@@ -44,8 +44,14 @@ function SingleDatePicker({
 }) {
   const [open, setOpen] = React.useState(false);
   const [date, setDate] = React.useState<Date | undefined>(initialDate);
-  const [month, setMonth] = React.useState<Date | undefined>(date);
-  const [value, setValue] = React.useState(formatDate(date));
+  const [month, setMonth] = React.useState<Date | undefined>(initialDate);
+  const [value, setValue] = React.useState(formatDate(initialDate));
+
+  React.useEffect(() => {
+    setDate(initialDate);
+    setMonth(initialDate);
+    setValue(formatDate(initialDate));
+  }, [initialDate]);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -64,6 +70,7 @@ function SingleDatePicker({
             if (isValidDate(date)) {
               setDate(date);
               setMonth(date);
+              onDateChange(date);
             }
           }}
           onKeyDown={(e) => {
