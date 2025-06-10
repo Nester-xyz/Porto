@@ -3,6 +3,15 @@ import { Card } from "@/components/ui/card";
 import { Render2Props } from "@/types/render";
 import { useEffect, useState } from "react";
 import { useUpload } from "@/hooks/useUpload";
+import { Tweet } from "@/types/tweets";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Eye } from "lucide-react";
 
 const RenderStep2: React.FC<Render2Props> = ({
   setCurrentStep,
@@ -14,9 +23,26 @@ const RenderStep2: React.FC<Render2Props> = ({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(50);
-  const { isProcessing, progress, tweet_to_bsky } = useUpload({
+  const [isEmailConfirmed, setIsEmailConfirmed] = useState(true);
+  const [tweetsWithVideos, setTweetsWithVideos] = useState<Tweet[]>([]);
+
+  const { isProcessing, progress, tweet_to_bsky, skippedVideos } = useUpload({
     shareableData,
   });
+
+  useEffect(() => {
+    const emailConfirmed = localStorage.getItem("emailConfirmed") === "true";
+    setIsEmailConfirmed(emailConfirmed);
+  }, []);
+
+  useEffect(() => {
+    if (validTweetsData) {
+      const videoTweets = validTweetsData.filter(
+        (t) => t.tweet.extended_entities?.media?.[0]?.type === "video"
+      );
+      setTweetsWithVideos(videoTweets);
+    }
+  }, [validTweetsData]);
 
   useEffect(() => {
     if (selectedTweetIds && selectedTweetIds.length > 0) {
@@ -61,6 +87,34 @@ const RenderStep2: React.FC<Render2Props> = ({
             Excluded: {totalTweets - validTweets} (quotes, retweets, replies, or
             outside date range)
           </p>
+          {!isEmailConfirmed && (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-yellow-700 dark:text-yellow-500">
+                Your email isn't verified. Videos won't be uploaded.
+              </p>
+              {tweetsWithVideos.length > 0 && (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Eye />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Tweets with Videos</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {tweetsWithVideos.map((t) => (
+                        <div key={t.tweet.id} className="p-2 border rounded-md">
+                          <p className="text-sm">{t.tweet.full_text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          )}
         </div>
       </Card>
 
@@ -142,6 +196,7 @@ const RenderStep2: React.FC<Render2Props> = ({
             setShareableData({
               ...shareableData,
               selectedTweetIds: selectedIds,
+              skippedVideos: skippedVideos,
             });
             await tweet_to_bsky(selectedIds);
           }}

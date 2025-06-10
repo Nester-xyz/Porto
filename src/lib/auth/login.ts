@@ -13,8 +13,5 @@ export const login = async ({ agent, identifier, password }: loginProps) => {
       identifier,
       password,
     });
-    console.log("successfully logged in");
-  } catch (error) {
-    console.log("Error logging in:", error);
-  }
+  } catch (error) {}
 };

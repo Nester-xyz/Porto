@@ -30,7 +30,6 @@ const LoginForm = ({
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = () => {
-    console.log("twoFactorNeeded", showTwoFactor);
     if (userName === "" || password === "") {
       alert("Please fill in both the username and password.");
     } else {

@@ -43,7 +43,6 @@ export const useFileUpload = (initialFileState: TFileState) => {
     const accountFile = findFile("account.js");
 
     if (!accountFile) {
-      console.log("Username is required but missing account.js file");
     }
 
     if (tweetsFile) {

@@ -3,12 +3,14 @@ import { Card } from "@/components/ui/card";
 import { BLUESKY_USERNAME } from "@/lib/constant";
 import { Render3Props } from "@/types/render";
 import { CheckCircle } from "lucide-react";
+import { Tweet } from "@/types/tweets";
 
 const RenderStep3: React.FC<Render3Props> = ({
   shareableData,
   setCurrentStep,
 }) => {
-  const { totalTweets, validTweetsData, selectedTweetIds } = shareableData;
+  const { totalTweets, validTweetsData, selectedTweetIds, skippedVideos } =
+    shareableData;
   const importedCount = selectedTweetIds.length
     ? selectedTweetIds.length
     : (validTweetsData?.length ?? 0);
@@ -44,6 +46,23 @@ const RenderStep3: React.FC<Render3Props> = ({
           </div>
         </Card>
 
+        {skippedVideos && skippedVideos.length > 0 && (
+          <Card className="p-4">
+            <h3 className="font-semibold mb-2">Tweets with Skipped Videos</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              The following tweets had videos that were not uploaded because
+              your email is not confirmed on Bluesky.
+            </p>
+            <div className="max-h-40 overflow-y-auto space-y-2">
+              {skippedVideos.map((tweet: Tweet["tweet"]) => (
+                <div key={tweet.id} className="p-2 border rounded-md">
+                  <p className="text-sm">{tweet.full_text}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         <Card className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-none">
           <div className="text-center space-y-4">
             <h3 className="font-semibold text-foreground">Support Our Work</h3>
@@ -74,7 +93,7 @@ const RenderStep3: React.FC<Render3Props> = ({
             onClick={() =>
               window.open(
                 `https://bsky.app/profile/${BLUESKY_USERNAME}.bsky.social`,
-                "_blank",
+                "_blank"
               )
             }
             className="flex-1 bg-blue-600 hover:bg-blue-700"

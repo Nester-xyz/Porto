@@ -3,9 +3,7 @@ import { Upload } from "lucide-react";
 
 export default function Post() {
   const [files, setFiles] = React.useState<FileList | null>(null);
-  useEffect(() => {
-    console.log(files);
-  }, [files]);
+  useEffect(() => {}, [files]);
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="bg-card p-8 rounded-lg shadow-md max-w-md w-full">

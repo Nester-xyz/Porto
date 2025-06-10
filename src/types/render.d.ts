@@ -9,6 +9,7 @@ export interface shareableData {
   dateRange: TDateRange;
   validTweetsData?: Tweet[];
   selectedTweetIds: string[];
+  skippedVideos?: Tweet["tweet"][];
 }
 
 export interface Render1Props {
