@@ -179,7 +179,6 @@ export async function bulkDeleteBskyPost(
       }
 
       const { feed } = data;
-      console.log("Current batch of posts:", feed);
       results.totalPosts += feed.length;
 
       // Process current batch in smaller chunks
@@ -250,14 +249,12 @@ export const importXProfileToBsky = async (
     const accountFile = findProfileFile("data/account.js");
 
     if (!profileFile) {
-      console.log("Username and bio is required but missing profile.js file. ");
       // return;
     }
-    if (!accountFile)
-      console.log("Username is required but missing account.js file");
+    if (!accountFile) {
+    }
     // If account.js found do this
     const accountContent = await accountFile!.text();
-    console.log("Raw profile content:", accountContent.substring(0, 200)); // Log first 200 chars
     let accountJson;
     try {
       // Remove 'window.YTD.account.part0 = ' and parse the remaining array
@@ -328,16 +325,12 @@ export const importXProfileToBsky = async (
       banner: headerBlob!,
       avatar: avatarBlob!,
     };
-    console.log("Updated Profile:", updatedProfile);
 
     // Update profile
     const result = await agent.upsertProfile((existing) => {
       const merged = { ...existing, ...updatedProfile };
-      console.log("Merged Profile:", merged);
       return merged;
     });
-
-    console.log("Profile update result:", result);
   } catch (error) {
     console.error("Error importing profile:", error);
   }
