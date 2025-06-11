@@ -96,7 +96,7 @@ const RenderStep3: React.FC<Render3Props> = ({
                 "_blank"
               )
             }
-            className="flex-1 bg-blue-600 hover:bg-blue-700"
+            className="flex-1 dark:text-white bg-blue-600 hover:bg-blue-700"
           >
             Open Bluesky
           </Button>
