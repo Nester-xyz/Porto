@@ -16,13 +16,10 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-        <div className="mb-8">
+    <div className="min-h-screen flex flex-col items-center justify-center">
+      <div className="border p-8 rounded-lg max-w-md w-full dark:bg-card dark:shadow-md">
+        <div className="">
           <Steps currentStep={currentStep} />
-          <h1 className="text-2xl font-bold text-center text-blue-600">
-            Import Twitter posts to Bluesky
-          </h1>
         </div>
 
         {currentStep === 1 ? (

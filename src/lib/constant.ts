@@ -1,13 +1,15 @@
+import { TDateRange, TFileState } from "@/types/render";
+
 export const ApiDelay = 2500;
 export const BLUESKY_USERNAME = localStorage.getItem("handle")?.split(".")[0];
 export const TWEETS_FILENAME = "tweets.js";
 export const TWEETS_MEDIA_FOLDER = "tweets_media";
 
-export const initialFileState = {
-  files: null as FileList | null,
-  fileMap: new Map<string, File>(),
-  tweetsLocation: null as string | null,
-  mediaLocation: null as string | null,
+export const initialFileState: TFileState = {
+  files: null,
+  tweetsLocation: null,
+  mediaLocation: null,
+  fileMap: new Map(),
 };
 
 export const initalTweetAnalyzer = {
@@ -16,9 +18,9 @@ export const initalTweetAnalyzer = {
   validTweets: 0,
 };
 
-export const intialDate = {
-  min_date: new Date(2023, 11, 7),
-  max_date: new Date(2023, 11, 9),
+export const intialDate: TDateRange = {
+  min_date: new Date(2000, 0, 1),
+  max_date: new Date(),
 };
 
 export const initialShareableData = {

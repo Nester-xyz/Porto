@@ -2,58 +2,71 @@ import { TFileState } from "@/types/render";
 import { useCallback, useEffect, useState } from "react";
 import { findFileFromMap } from "@/lib/parse/parse";
 
-export const UseFileUpload = (initialFileState: TFileState) => {
+export const useFileUpload = (initialFileState: TFileState) => {
   const [fileState, setFileState] = useState<TFileState>(initialFileState);
+  const [targetFileFound, setTargetFileFound] = useState(false);
 
-  const handleFileUpload = useCallback(async (files: FileList | null) => {
-    if (!files) return null;
-    setFileState((prev) => ({
-      ...prev,
-      files,
-      fileMap: new Map(
-        Array.from(files).map((file) => [file.webkitRelativePath, file]),
-      ),
-    }));
-  }, []);
+  const onFilesChange = useCallback(
+    (files: File[]) => {
+      if (!files || files.length === 0) {
+        setFileState(initialFileState);
+        return;
+      }
+      setFileState((prev) => ({
+        ...prev,
+        files: files,
+        fileMap: new Map(
+          files.map((file) => [
+            (file as any).webkitRelativePath || file.name,
+            file,
+          ])
+        ),
+      }));
+    },
+    [initialFileState]
+  );
 
   const findFile = useCallback(
     (fileName: string) => {
       return findFileFromMap(fileState.fileMap, fileName);
     },
-    [fileState.fileMap],
-  );
-
-  const isFilePresent = useCallback(
-    (fileName: string) => {
-      return !!findFileFromMap(fileState.fileMap, fileName);
-    },
-    [fileState.fileMap],
+    [fileState.fileMap]
   );
 
   useEffect(() => {
-    if (!fileState.fileMap.size) return;
+    if (!fileState.fileMap.size) {
+      setTargetFileFound(false);
+      return;
+    }
 
     const tweetsFile = findFile("tweets.js");
     const accountFile = findFile("account.js");
-    if (!tweetsFile) return;
-    if (!accountFile) console.log("Username is required but missing account.js file");
 
-    const parentFolder = tweetsFile.webkitRelativePath
-      .split("/")
-      .slice(0, -1)
-      .join("/");
+    if (!accountFile) {
+    }
 
-    setFileState((prev) => ({
-      ...prev,
-      tweetsLocation: tweetsFile.webkitRelativePath,
-      mediaLocation: `${parentFolder}/tweets_media`,
-    }));
-  }, [fileState.fileMap, findFile, setFileState]);
+    if (tweetsFile) {
+      const parentFolder = (tweetsFile as any).webkitRelativePath
+        .split("/")
+        .slice(0, -1)
+        .join("/");
+
+      setFileState((prev) => ({
+        ...prev,
+        tweetsLocation: (tweetsFile as any).webkitRelativePath,
+        mediaLocation: `${parentFolder}/tweets_media`,
+      }));
+      setTargetFileFound(true);
+    } else {
+      setTargetFileFound(false);
+    }
+  }, [fileState.fileMap, findFile, initialFileState]);
 
   return {
     fileState,
-    handleFileUpload,
-    isFilePresent,
+    onFilesChange,
+    targetFileFound,
+    setTargetFileFound,
     findFile,
     setFileState,
   };

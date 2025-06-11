@@ -33,7 +33,6 @@ chrome.action.onClicked.addListener(async () => {
 // Handle messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "sayHello") {
-    console.log("Hello from the background script!");
     sendResponse({ response: "Hello from background!" });
   }
 });

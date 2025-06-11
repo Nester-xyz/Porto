@@ -9,6 +9,7 @@ export interface shareableData {
   dateRange: TDateRange;
   validTweetsData?: Tweet[];
   selectedTweetIds: string[];
+  skippedVideos?: Tweet["tweet"][];
 }
 
 export interface Render1Props {
@@ -28,7 +29,7 @@ export interface Render3Props {
 }
 
 export type TFileState = {
-  files: FileList | null;
+  files: File[] | null;
   fileMap: Map<string, File>;
   tweetsLocation: string | null;
   mediaLocation: string | null;

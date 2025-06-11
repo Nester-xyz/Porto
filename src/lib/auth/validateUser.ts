@@ -1,7 +1,7 @@
 import { AtpAgent, AtpSessionData, AtpSessionEvent } from "@atproto/api";
 
 export const ValidateUser = async (
-  loggedIn: boolean,
+  loggedIn: boolean
 ): Promise<{
   loggedInSuccess: boolean;
   agent: AtpAgent;
@@ -13,7 +13,7 @@ export const ValidateUser = async (
     agentInstance = new AtpAgent({
       service: "https://bsky.social",
       persistSession: (_: AtpSessionEvent, sess?: AtpSessionData) => {
-        // console.log(sess);
+        //
         if (!sess) return;
         // Store session data
         localStorage.setItem("handle", sess.handle);

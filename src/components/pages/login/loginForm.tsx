@@ -16,14 +16,20 @@ interface LoginFormProps {
   onVerificationCodeChange: (code: string) => void;
 }
 
-const LoginForm = ({ onLogin, error, isLoading, showTwoFactor, verificationCode, onVerificationCodeChange }: LoginFormProps) => {
+const LoginForm = ({
+  onLogin,
+  error,
+  isLoading,
+  showTwoFactor,
+  verificationCode,
+  onVerificationCodeChange,
+}: LoginFormProps) => {
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
   const [showToolTip, setShowToolTip] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = () => {
-    console.log("twoFactorNeeded", showTwoFactor);
     if (userName === "" || password === "") {
       alert("Please fill in both the username and password.");
     } else {
@@ -34,13 +40,13 @@ const LoginForm = ({ onLogin, error, isLoading, showTwoFactor, verificationCode,
   const appPasswordRoute = () => {
     window.open(
       "https://github.com/bluesky-social/atproto-ecosystem/blob/main/app-passwords.md",
-      "_blank",
+      "_blank"
     );
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <Card className="w-full max-w-md p-6 bg-white shadow-md rounded-lg">
+    <div className="flex items-center justify-center min-h-screen">
+      <Card className="w-full max-w-md p-6 shadow-md rounded-lg">
         <CardHeader>
           <CardTitle className="text-center text-4xl">Login</CardTitle>
         </CardHeader>
@@ -58,7 +64,9 @@ const LoginForm = ({ onLogin, error, isLoading, showTwoFactor, verificationCode,
                 <div
                   id="error"
                   className={`mt-1 text-sm border rounded-md p-2 flex gap-2 ${
-                    showTwoFactor ? "bg-yellow-100 border-yellow-400 text-yellow-600" : "bg-red-100 border-red-400 text-red-600"
+                    showTwoFactor
+                      ? "bg-yellow-100 border-yellow-400 text-yellow-600 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-100"
+                      : "bg-red-100 border-red-400 text-red-600 dark:bg-red-900 dark:border-red-700 dark:text-red-100"
                   }`}
                 >
                   <CgDanger className="flex-shrink-0 mt-1" />
@@ -68,7 +76,7 @@ const LoginForm = ({ onLogin, error, isLoading, showTwoFactor, verificationCode,
             </div>
             {/* Username Input */}
             <div className="flex flex-col gap-1">
-              <Label htmlFor="userName">UserName</Label>
+              <Label htmlFor="userName">Username</Label>
               <Input
                 id="userName"
                 type="text"
@@ -82,7 +90,7 @@ const LoginForm = ({ onLogin, error, isLoading, showTwoFactor, verificationCode,
             {/* Password Input */}
             <div className="flex flex-col gap-1 relative">
               {showToolTip && (
-                <div className="bg-gray-100 p-3 rounded-md text-sm absolute -translate-y-1/2 -top-1/2">
+                <div className="bg-muted border border-border p-3 rounded-md text-sm absolute -translate-y-1/2 -top-1/2">
                   Temporary password for third party applications!
                 </div>
               )}
@@ -97,11 +105,11 @@ const LoginForm = ({ onLogin, error, isLoading, showTwoFactor, verificationCode,
                   <BsFillInfoCircleFill />
                 </div>
               </div>
-              <div className="flex items-center border rounded-md px-3 ">
+              <div className="mt-1 flex items-center border rounded-md px-3 ">
                 <Input
                   type={showPassword ? "text" : "password"}
                   id="password"
-                  className=" border-none focus-visible:ring-0 p-0"
+                  className="border-none focus-visible:ring-0 p-0"
                   placeholder="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -144,8 +152,7 @@ const LoginForm = ({ onLogin, error, isLoading, showTwoFactor, verificationCode,
               Login
             </Button>
 
-            <button type="submit" disabled={isLoading}>
-      </button>
+            <button type="submit" disabled={isLoading}></button>
           </form>
         </CardContent>
       </Card>

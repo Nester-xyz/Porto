@@ -6,8 +6,8 @@ import { RateLimitedAgent } from "@/lib/rateLimit/RateLimitedAgent";
 // Create context with a default value
 export const LogInContext = createContext<LogInContextType>({
   loggedIn: false,
-  setLoggedIn: () => { },
-  signOut: () => { },
+  setLoggedIn: () => {},
+  signOut: () => {},
   agent: null,
 });
 
@@ -25,7 +25,6 @@ export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
     const validate = async () => {
       if (!agent) {
         try {
-          console.log("Validating user...");
           const { agent: baseAgent } = await ValidateUser(loggedIn);
 
           // Wrap the base agent with RateLimitedAgent

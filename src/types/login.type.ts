@@ -1,12 +1,12 @@
 import { Dispatch, SetStateAction } from "react";
-import { AtpAgent } from "@atproto/api";
+import { RateLimitedAgent } from "../lib/rateLimit/RateLimitedAgent";
 
 type Tlogin = ({
   agent,
   identifier,
   password,
 }: {
-  agent: AtpAgent;
+  agent: RateLimitedAgent;
   identifier: string;
   password: string;
 }) => void;
@@ -15,5 +15,5 @@ export interface LogInContextType {
   loggedIn: boolean;
   setLoggedIn: Dispatch<SetStateAction<boolean>>;
   signOut: () => void;
-  agent: AtpAgent | null;
+  agent: RateLimitedAgent | null;
 }

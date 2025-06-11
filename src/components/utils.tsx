@@ -1,12 +1,14 @@
-import imageCompression from 'browser-image-compression';
-import { parse } from 'node-html-parser';
-import AtpAgent, { AppBskyActorProfile, BlobRef } from "@atproto/api";
+import imageCompression from "browser-image-compression";
+import { parse } from "node-html-parser";
+import AtpAgent, { AppBskyActorProfile, BlobRef, RichText } from "@atproto/api";
 import { TEmbeddedImage, Tweet } from "@/types/tweets";
 import { TDateRange, TFileState } from "@/types/render";
 import he from "he";
 import URI from "urijs";
+import { RateLimitedAgent } from "@/lib/rateLimit/RateLimitedAgent";
 const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
-const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3';
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3";
 
 interface Thumb {
   $type: "none" | "blob";
@@ -21,10 +23,27 @@ interface EmbedCard {
   description: string;
   thumb: Thumb;
 }
+
+interface ProfileData {
+  profile: {
+    description: {
+      bio: string;
+      website: string;
+      location: string;
+    };
+    header: {
+      url: string;
+    };
+    avatar: {
+      url: string;
+    };
+  };
+}
+
 type BlobResponse = BlobRef;
 export const findFileFromMap = (
   fileMap: Map<string, File>,
-  fileName: string,
+  fileName: string
 ): File | null => {
   if (!fileMap || fileMap.size === 0) return null;
   const filePath = Array.from(fileMap.keys()).find((filePath) => {
@@ -67,7 +86,7 @@ export const isQuote = (tweets: Tweet[], id: string) => {
 
 export const sortTweetsWithDateRange = (
   tweets: Tweet[],
-  dateRange: TDateRange,
+  dateRange: TDateRange
 ) =>
   tweets
     .filter((tweet) => {
@@ -127,11 +146,14 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
   return removeTcoLinks(newText);
 }
 
-export async function bulkDeleteBskyPost(agent: AtpAgent): Promise<{
+export async function bulkDeleteBskyPost(
+  rateLimitedAgent: RateLimitedAgent
+): Promise<{
   totalPosts: number;
   deleted: number;
   failed: Array<{ uri: string; error: Error }>;
 }> {
+  const agent = rateLimitedAgent.agent;
   const results = {
     totalPosts: 0,
     deleted: 0,
@@ -157,7 +179,6 @@ export async function bulkDeleteBskyPost(agent: AtpAgent): Promise<{
       }
 
       const { feed } = data;
-      console.log("Current batch of posts:", feed);
       results.totalPosts += feed.length;
 
       // Process current batch in smaller chunks
@@ -176,7 +197,7 @@ export async function bulkDeleteBskyPost(agent: AtpAgent): Promise<{
                   error instanceof Error ? error : new Error(String(error)),
               });
             }
-          }),
+          })
         );
       }
 
@@ -198,9 +219,10 @@ export async function bulkDeleteBskyPost(agent: AtpAgent): Promise<{
 }
 
 export const importXProfileToBsky = async (
-  agent: AtpAgent,
-  fileState: TFileState,
+  rateLimitedAgent: RateLimitedAgent,
+  fileState: TFileState
 ) => {
+  const agent = rateLimitedAgent.agent;
   if (!agent) {
     throw new Error("Bluesky agent not initialized");
   }
@@ -210,7 +232,7 @@ export const importXProfileToBsky = async (
       Array.from(fileState.files || []).map((file) => [
         file.webkitRelativePath,
         file,
-      ]),
+      ])
     );
 
     // Find the profile.js file in the correct path structure
@@ -225,39 +247,15 @@ export const importXProfileToBsky = async (
 
     const profileFile = findProfileFile("data/profile.js");
     const accountFile = findProfileFile("data/account.js");
+
     if (!profileFile) {
-      throw new Error(
-        "Profile data file not found in the uploaded Twitter archive",
-      );
+      // return;
     }
     if (!accountFile) {
-      throw new Error(
-        "Account data file not found in the uploaded Twitter archive",
-      );
     }
-
-    // Read and parse the profile data
-    const profileContent = await profileFile.text();
-    console.log("Raw profile content:", profileContent.substring(0, 200)); // Debug log
-
-    const accountContent = await accountFile.text();
-    console.log("Raw profile content:", accountContent.substring(0, 200)); // Debug log
-    // Handle the window._sharedData format if present
-    let profileJson;
+    // If account.js found do this
+    const accountContent = await accountFile!.text();
     let accountJson;
-
-    try {
-      // Remove 'window.YTD.profile.part0 = ' and parse the remaining array
-      const cleanContent = profileContent
-        .replace(/window\.YTD\.profile\.part0 = /, "")
-        .trim();
-      const profileArray = JSON.parse(cleanContent);
-      profileJson = profileArray[0].profile; // Access the first profile object
-    } catch (e) {
-      console.error("Failed to parse profile data:", e);
-      throw new Error("Failed to parse profile data from file");
-    }
-
     try {
       // Remove 'window.YTD.account.part0 = ' and parse the remaining array
       const cleanContent = accountContent
@@ -270,464 +268,337 @@ export const importXProfileToBsky = async (
       throw new Error("Failed to parse profile data from file");
     }
 
-    // Extract relevant profile data with fallbacks
-    const profileData: ProfileData = {
-      profile_image_url: profileJson.avatarMediaUrl,
-      profile_banner_url: profileJson.headerMediaUrl,
-      description: profileJson.description.bio,
-      name: profileJson.displayName || "", // if displayName is not available, use empty string
-      location: profileJson.description.location,
-      url: profileJson.description.website,
+    // if profile.js found do this
+    const profileContent = await profileFile!.text();
+    let profileJson: ProfileData | null = null; // Initialize to null
+    try {
+      const cleanContent = profileContent
+        .replace(/window\.YTD\.profile\.part0 = /, "")
+        .trim();
+      const profileArray = JSON.parse(cleanContent);
+      profileJson = profileArray[0];
+    } catch (e) {
+      console.error("Failed to parse profile data:", e);
+      profileJson = null; // Set to null on failure
+    }
+
+    console.log("profileJson", profileJson);
+
+    // const { profile } = profileJson;
+
+    const uploadImage = async (url: string): Promise<BlobResponse | null> => {
+      if (!url) return null;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.statusText}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        const blob = new Blob([arrayBuffer], {
+          type:
+            response.headers.get("content-type") || "application/octet-stream",
+        });
+
+        // Recompress image if needed
+        const compressedFile = await recompressImageIfNeeded(blob);
+        const newArrayBuffer = await compressedFile.arrayBuffer();
+
+        const uploadResponse = await agent.uploadBlob(
+          new Uint8Array(newArrayBuffer),
+          {
+            encoding: compressedFile.type,
+          }
+        );
+        return uploadResponse.data.blob;
+      } catch (error) {
+        console.error("Error uploading image:", error);
+        return null;
+      }
     };
-    // Upload profile image
-    let avatarRef: BlobResponse | undefined;
-    if (profileData.profile_image_url) {
-      try {
-        const imageResponse = await fetch(profileData.profile_image_url);
-        const imageBlob = await imageResponse.blob();
-        const uploadResponse = await agent.uploadBlob(imageBlob, {
-          encoding: "image/jpeg",
-        });
-        avatarRef = uploadResponse.data.blob;
-      } catch (error) {
-        console.warn("Failed to upload avatar image:", error);
-      }
-    }
 
-    // Upload banner image
-    let bannerRef: BlobRef;
-    if (profileData.profile_banner_url) {
-      try {
-        const bannerResponse = await fetch(profileData.profile_banner_url);
-        const bannerBlob = await bannerResponse.blob();
-        const bannerUploadResponse = await agent.uploadBlob(bannerBlob, {
-          encoding: "image/jpeg",
-        });
-        bannerRef = bannerUploadResponse.data.blob;
-      } catch (error) {
-        console.warn("Failed to upload banner image:", error);
-      }
-    }
+    const headerBlob = await uploadImage(profileJson!.profile.header.url);
+    const avatarBlob = await uploadImage(profileJson!.profile.avatar.url);
 
-    // Update profile using the correct upsertProfile method
-    await agent.upsertProfile(async (existing) => {
-      const updatedProfile: AppBskyActorProfile.Record = {
-        $type: "app.bsky.actor.profile", // Add this line
-        displayName: accountJson.accountDisplayName,
-        description: profileData.description,
-        ...(avatarRef && { avatar: avatarRef }),
-        ...(bannerRef && { banner: bannerRef }),
+    const updatedProfile: AppBskyActorProfile.Record = {
+      displayName: accountJson.username,
+      description: profileJson!.profile.description.bio,
+      banner: headerBlob!,
+      avatar: avatarBlob!,
+    };
 
-        // Correct labels structure
-        labels: {
-          $type: "com.atproto.label.defs#selfLabels",
-          values: [],
-        },
-
-        // Preserve existing fields
-        ...(existing?.createdAt && { createdAt: existing.createdAt }),
-        ...(existing?.pinnedPost && { pinnedPost: existing.pinnedPost }),
-        ...(existing?.joinedViaStarterPack && {
-          joinedViaStarterPack: existing.joinedViaStarterPack,
-        }),
-      };
-
-      // Preserve existing fields
-      if (existing?.createdAt) {
-        updatedProfile.createdAt = existing.createdAt;
-      }
-      if (existing?.pinnedPost) {
-        updatedProfile.pinnedPost = existing.pinnedPost;
-      }
-      if (existing?.joinedViaStarterPack) {
-        updatedProfile.joinedViaStarterPack = existing.joinedViaStarterPack;
-      }
-
-      return updatedProfile;
+    // Update profile
+    const result = await agent.upsertProfile((existing) => {
+      const merged = { ...existing, ...updatedProfile };
+      return merged;
     });
-
-    return {
-      success: true,
-      message: "Profile successfully updated on Bluesky",
-      updatedFields: {
-        avatar: !!avatarRef,
-        banner: !!bannerRef,
-        description: true,
-        name: true,
-        location: !!profileData.location,
-        url: !!profileData.url,
-      },
-    };
   } catch (error) {
-    console.error("Error importing profile to Bluesky:", error);
-    throw new Error(
-      `Failed to import profile: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    console.error("Error importing profile:", error);
   }
 };
 
+export function getMergeEmbed(
+  images: TEmbeddedImage[] = [],
+  embeddedVideo: {} | null = null,
+  record: {} | null = null
+): {} | null {
+  let mediaEmbed: any = null;
 
-export function getMergeEmbed(images: [] = [], embeddedVideo: {} | null = null, record: {} | null = null): {} | null {
-  let mediaData: {} | null = null;
   if (images.length > 0) {
-    mediaData = {
+    mediaEmbed = {
       $type: "app.bsky.embed.images",
-      images
+      images: images,
     };
-  } else if (embeddedVideo != null) {
-    mediaData = {
+  } else if (embeddedVideo && Object.keys(embeddedVideo).length > 0) {
+    mediaEmbed = {
       $type: "app.bsky.embed.video",
       video: embeddedVideo,
     };
   }
 
-  let recordData: {} | null = null;
   if (record && Object.keys(record).length > 0) {
-    recordData = {
-      $type: "app.bsky.embed.record",
-      record
-    };
+    if (mediaEmbed) {
+      return {
+        $type: "app.bsky.embed.recordWithMedia",
+        record: record,
+        media: mediaEmbed,
+      };
+    } else {
+      return {
+        $type: "app.bsky.embed.record",
+        record: record,
+      };
+    }
   }
 
-  if (mediaData && recordData) {
-    return {
-      $type: "app.bsky.embed.recordWithMedia",
-      media: mediaData,
-      record: {
-        record
-      }
-    };
-  }
-
-  return mediaData || recordData;
-
+  return mediaEmbed;
 }
 
 export async function recompressImageIfNeeded(
   imageData: File | Blob | ArrayBuffer | string
 ): Promise<File> {
-  // Convert string/ArrayBuffer to File if needed
-  let file: File;
-  if (typeof imageData === 'string') {
-    // Assuming it's a base64 string
-    const response = await fetch(imageData);
-    const blob = await response.blob();
-    file = new File([blob], 'image.jpg', { type: blob.type });
-  } else if (imageData instanceof ArrayBuffer) {
-    file = new File([new Uint8Array(imageData)], 'image.jpg', { type: 'image/jpeg' });
-  } else {
-    file = imageData instanceof File ? imageData : new File([imageData], 'image.jpg');
-  }
-
   const options = {
-    maxSizeMB: 1,
-    maxWidthOrHeight: 1920,
-    useWebWorker: true
+    maxSizeMB: 0.95, // Corresponds to just under 1MB
+    maxWidthOrHeight: 2000,
+    useWebWorker: true,
   };
 
+  let file: File;
+
+  // Convert ArrayBuffer or string to Blob if necessary
+  if (imageData instanceof ArrayBuffer) {
+    file = new File([imageData], "image.jpg", { type: "image/jpeg" }); // Simplified, might need specific type
+  } else if (typeof imageData === "string") {
+    // Assuming base64 or data URL, fetch and convert to blob
+    const response = await fetch(imageData);
+    const blob = await response.blob();
+    file = new File([blob], "image.jpg", { type: blob.type });
+  } else {
+    file = imageData as File;
+  }
+  if (file.size <= MAX_FILE_SIZE) {
+    return file; // No compression needed
+  }
+
   try {
-    return await imageCompression(file, options);
+    const compressedFile = await imageCompression(file, options);
+    return compressedFile;
   } catch (error) {
-    console.warn('Image compression failed:', error);
-    return file;
+    console.error("Image compression error:", error);
+    return file; // Return original file on error
   }
 }
-
-
 async function fetchOembed(url: string): Promise<any> {
-  // Expanded list of OEmbed providers with more flexible discovery
-  const oembedProviders = [
-    `https://open.iframe.ly/api/oembed?url=${encodeURIComponent(url)}`,
-  ];
-
-  // Try HTML link tag discovery first
-  try {
-    const htmlDiscoveryEndpoint = await discoverOEmbedEndpointFromHTML(url);
-    if (htmlDiscoveryEndpoint) {
-      const discoveredResult = await fetchOEmbedFromDiscoveredEndpoint(htmlDiscoveryEndpoint, url);
-      if (discoveredResult) return discoveredResult;
-    }
-  } catch (error) {
-    console.debug('HTML OEmbed discovery failed:', error);
-  }
-
-  // Fallback to predefined providers
-  for (const providerUrl of oembedProviders) {
-    try {
-      const response = await fetch(providerUrl, {
-        headers: {
-          'User-Agent': USER_AGENT,
-          'Accept': 'application/json'
-        },
-        signal: AbortSignal.timeout(25000)
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data && (data.title || data.description || data.thumbnail_url)) {
-          return data;
-        }
-      }
-    } catch (error) {
-      console.debug(`Oembed fetch error for ${providerUrl}:`, error);
+  // 1. Discover oEmbed endpoint from the URL's HTML
+  const endpointUrl = await discoverOEmbedEndpointFromHTML(url);
+  if (endpointUrl) {
+    // 2. Fetch data from the discovered oEmbed endpoint
+    const oembedData = await fetchOEmbedFromDiscoveredEndpoint(
+      endpointUrl,
+      url
+    );
+    if (oembedData) {
+      return oembedData;
     }
   }
-
   return null;
 }
 
-// Discover OEmbed endpoint from HTML link tags
-async function discoverOEmbedEndpointFromHTML(url: string): Promise<string | null> {
+async function discoverOEmbedEndpointFromHTML(
+  url: string
+): Promise<string | null> {
   try {
     const response = await fetch(url, {
       headers: {
-        'Accept': 'text/html',
-        'User-Agent': USER_AGENT
+        "User-Agent": USER_AGENT,
       },
-      signal: AbortSignal.timeout(25000)
     });
-
-    if (!response.ok) return null;
-
+    if (!response.ok) {
+      console.warn(
+        `Failed to fetch HTML for oEmbed discovery: ${response.status}`
+      );
+      return null;
+    }
     const html = await response.text();
     const root = parse(html);
 
-    // Look for link tags with rel="alternate" and type="application/json+oembed"
-    const oembedLinks = root.querySelectorAll('link[rel="alternate"][type="application/json+oembed"]');
-
-    if (oembedLinks.length > 0) {
-      const href = oembedLinks[0].getAttribute('href');
-      return href || null;
+    // Look for <link type="application/json+oembed" href="...">
+    const linkTag = root.querySelector('link[type="application/json+oembed"]');
+    if (linkTag) {
+      const href = linkTag.getAttribute("href");
+      if (href) {
+        // Construct absolute URL if the href is relative
+        return new URL(href, url).href;
+      }
     }
-
-    return null;
   } catch (error) {
-    console.debug('HTML OEmbed discovery error:', error);
-    return null;
+    console.warn(`Error discovering oEmbed endpoint: ${error}`);
   }
+  return null;
 }
-
-// Fetch OEmbed data from discovered endpoint
-async function fetchOEmbedFromDiscoveredEndpoint(endpoint: string, originalUrl: string): Promise<any | null> {
+async function fetchOEmbedFromDiscoveredEndpoint(
+  endpoint: string,
+  originalUrl: string
+): Promise<any | null> {
   try {
-    const fullEndpoint = `${endpoint}?url=${encodeURIComponent(originalUrl)}&format=json`;
+    // Append format and url parameters to the endpoint URL
+    const requestUrl = new URL(endpoint);
+    requestUrl.searchParams.append("format", "json");
+    requestUrl.searchParams.append("url", originalUrl);
 
-    const response = await fetch(fullEndpoint, {
+    const response = await fetch(requestUrl.toString(), {
       headers: {
-        'Accept': 'application/json',
-        'User-Agent': USER_AGENT
+        "User-Agent": USER_AGENT,
       },
-      signal: AbortSignal.timeout(25000)
     });
 
     if (response.ok) {
       return await response.json();
     }
   } catch (error) {
-    console.debug('Discovered endpoint OEmbed fetch error:', error);
+    console.warn(`Error fetching from oEmbed endpoint: ${error}`);
   }
-
   return null;
 }
 
-export async function fetchEmbedUrlCard(url: string, agent: AtpAgent): Promise<any> {
-  const card: EmbedCard = {
-    uri: url,
-    title: "",
-    description: "",
-    thumb: { $type: "none", ref: "", mimeType: "", size: 0 },
-  };
-
+export const fetchEmbedUrlCard = async (
+  url: string,
+  agent: any
+): Promise<any> => {
   try {
-    console.log("fetching the embed url card");
-    const oembedResult = await fetchOembed(url);
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(
+      url
+    )}`;
+    const response = await fetch(proxyUrl);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const html = await response.text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
 
-    if (oembedResult) {
-      card.title = oembedResult.title || card.title;
-      card.description = oembedResult.description || card.description;
+    const title =
+      doc.querySelector('meta[property="og:title"]')?.getAttribute("content") ||
+      doc.querySelector("title")?.textContent ||
+      "";
+    const description =
+      doc
+        .querySelector('meta[property="og:description"]')
+        ?.getAttribute("content") ||
+      doc.querySelector('meta[name="description"]')?.getAttribute("content") ||
+      "";
+    const imageUrl = doc
+      .querySelector('meta[property="og:image"]')
+      ?.getAttribute("content");
 
-      if (oembedResult.thumbnail_url) {
-        try {
-          const imgResp = await fetch(oembedResult.thumbnail_url, {
-            headers: {
-              'User-Agent': USER_AGENT,
-              'Accept': 'image/*'
-            },
-            mode: 'cors',
-            credentials: 'omit',
-            signal: AbortSignal.timeout(25000)
+    if (!title || !description) {
+      return null;
+    }
+
+    let thumbBlob: BlobRef | undefined = undefined;
+    if (imageUrl) {
+      try {
+        const imageResponse = await fetch(
+          `https://api.allorigins.win/raw?url=${encodeURIComponent(imageUrl)}`
+        );
+        if (imageResponse.ok) {
+          const imageBlob = await imageResponse.blob();
+          const imageBuffer = await imageBlob.arrayBuffer();
+          const uint8Array = new Uint8Array(imageBuffer);
+
+          const uploadedThumb = await agent.uploadBlob(uint8Array, {
+            encoding: imageBlob.type,
           });
-
-          if (imgResp.ok) {
-            let imgBuffer = await imgResp.arrayBuffer();
-            const mimeType = imgResp.headers.get('content-type') || 'image/jpeg';
-
-            if (imgBuffer.byteLength > MAX_FILE_SIZE) {
-              console.warn('Image needs compression');
-            }
-
-            if (mimeType.startsWith('image/') && !mimeType.startsWith('image/svg')) {
-              const blobRecord = await agent.uploadBlob(imgBuffer, {
-                encoding: mimeType
-              });
-
-              card.thumb = {
-                $type: "blob",
-                ref: blobRecord.data.blob.ref,
-                mimeType: blobRecord.data.blob.mimeType,
-                size: blobRecord.data.blob.size
-              };
-            }
+          if (uploadedThumb) {
+            thumbBlob = uploadedThumb.data.blob;
           }
-        } catch (error) {
-          console.warn('Thumbnail fetch error:', error);
         }
+      } catch (error) {
+        console.warn(`Failed to fetch or upload thumbnail: ${error}`);
       }
     }
 
-    // Fallback to direct URL fetch if no OEmbed data
-    if (!card.title && !card.description && !card.thumb.size) {
-      const resp = await fetch(url, {
-        headers: {
-          'User-Agent': USER_AGENT,
-          'Accept': 'text/html'
-        },
-        signal: AbortSignal.timeout(25000)
-      });
+    const externalEmbed: any = {
+      $type: "app.bsky.embed.external",
+      external: {
+        uri: url,
+        title: title,
+        description: description,
+      },
+    };
 
-      if (!resp.ok) {
-        if (resp.status === 401 && url.startsWith('http:')) {
-          return await fetchEmbedUrlCard(url.replace('http:', 'https:'), agent);
-        }
-        throw new Error(`HTTP error: ${resp.status} ${resp.statusText}`);
-      }
-
-      const html = await resp.text();
-      const root = parse(html);
-
-      const titleTag = root.querySelector('meta[property="og:title"]');
-      if (titleTag) {
-        card.title = he.decode(titleTag.getAttribute('content') || '');
-      }
-
-      const descriptionTag = root.querySelector('meta[property="og:description"]');
-      if (descriptionTag) {
-        card.description = he.decode(descriptionTag.getAttribute('content') || '');
-      }
-
-      const imageTag = root.querySelector('meta[property="og:image"]');
-      if (imageTag) {
-        let imgUrl = imageTag.getAttribute('content') || '';
-        if (!imgUrl.includes('://')) {
-          imgUrl = new URL(imgUrl, url).href;
-        }
-
-        try {
-          const imgResp = await fetch(imgUrl, {
-            headers: {
-              'User-Agent': USER_AGENT,
-              'Accept': 'image/*'
-            },
-            signal: AbortSignal.timeout(25000)
-          });
-
-          if (imgResp.ok) {
-            let imgBuffer = await imgResp.arrayBuffer();
-            const mimeType = imgResp.headers.get('content-type') || 'image/jpeg';
-
-            if (imgBuffer.byteLength > MAX_FILE_SIZE) {
-              console.warn('Image needs compression');
-            }
-
-            if (mimeType.startsWith('image/') && !mimeType.startsWith('image/svg')) {
-              const blobRecord = await agent.uploadBlob(imgBuffer, { encoding: mimeType });
-
-              card.thumb = {
-                $type: "blob",
-                ref: blobRecord.data.blob.ref,
-                mimeType: blobRecord.data.blob.mimeType,
-                size: blobRecord.data.blob.size
-              };
-            }
-          }
-        } catch (error) {
-          console.warn('Image fetch error:', error);
-        }
-      }
+    if (thumbBlob) {
+      externalEmbed.external.thumb = thumbBlob;
     }
 
-    // Standardize return format for Bluesky
-    if (card.title || card.description || card.thumb.size > 0) {
-      return {
-        $type: "app.bsky.embed.external",
-        external: {
-          uri: url,
-          title: card.title || '',
-          description: card.description || '',
-          ...(card.thumb.size > 0 ? { thumb: card.thumb } : {})
-        }
-      };
-    }
-
-    return null;
+    return externalEmbed;
   } catch (error: any) {
     console.warn(`Error fetching embed URL card: ${error.message}`);
     return null;
   }
-}
+};
 
-export function checkPastHandles(twitterHandles: string[], url: string): boolean {
-  return (twitterHandles || []).some(handle =>
-    url.startsWith(`https://x.com/${handle}/`) ||
-    url.startsWith(`https://twitter.com/${handle}/`)
-  )
-}
-
-export function getEmbeddedUrlAndRecord(
+export function checkPastHandles(
   twitterHandles: string[],
-  urls: Array<{ expanded_url: string }>,
-  tweets: Array<{
-    tweet: Record<string, string>,
-    bsky?: Record<string, string>,
-  }>
-): {
-  embeddedUrl: string | null;
-  embeddedRecord: {
-    "uri": string;
-    "cid": string;
-  } | null;
-} {
-  let embeddedTweetUrl: string | null = null;
-  const nullResult = {
-    embeddedUrl: null,
-    embeddedRecord: null,
-  };
+  url: string
+): boolean {
+  if (!url) return false;
 
-  // get the last one url to embed
-  const reversedUrls = urls.reverse();
-  embeddedTweetUrl = reversedUrls.find(({ expanded_url }) => checkPastHandles(twitterHandles, expanded_url))?.expanded_url ?? null;
-
-  if (!embeddedTweetUrl) {
-    return nullResult;
+  for (const handle of twitterHandles) {
+    const pastHandlePattern = new RegExp(
+      `^https://twitter.com/${handle}/status/(\\d+)$`
+    );
+    if (pastHandlePattern.test(url)) return true;
   }
-
-  const index = embeddedTweetUrl.lastIndexOf("/");
-  if (index == -1) {
-    return nullResult;
-  }
-
-  const urlId = embeddedTweetUrl.substring(index + 1);
-  const tweet = tweets.find(({ tweet: { id } }) => id == urlId)
-
-  if (!tweet?.bsky) {
-    return nullResult;
-  }
-
-  return {
-    embeddedUrl: embeddedTweetUrl,
-    embeddedRecord: {
-      "uri": tweet.bsky.uri,
-      "cid": tweet.bsky.cid,
-    }
-  };
+  return false;
 }
+
+export const getEmbeddedUrlAndRecord = (
+  twitterHandles: string[],
+  urls: any[],
+  tweets: Array<{ tweet: Record<string, string>; bsky?: any }>
+) => {
+  if (!urls || urls.length === 0)
+    return { embeddedUrl: null, embeddedRecord: null };
+
+  const firstUrl = urls[0].expanded_url;
+
+  if (checkPastHandles(twitterHandles, firstUrl)) {
+    const statusId = firstUrl.split("/").pop();
+    const existingTweet = tweets.find(
+      ({ tweet, bsky }) => tweet.id_str === statusId && bsky
+    );
+
+    if (existingTweet) {
+      const { uri, cid } = existingTweet.bsky;
+      return {
+        embeddedUrl: null,
+        embeddedRecord: {
+          $type: "app.bsky.embed.record",
+          record: {
+            uri,
+            cid,
+          },
+        },
+      };
+    }
+  }
+
+  return { embeddedUrl: { uri: firstUrl }, embeddedRecord: null };
+};
