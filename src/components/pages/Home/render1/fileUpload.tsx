@@ -6,6 +6,7 @@ import {
   XCircle,
 } from "lucide-react";
 import React, { useState, useCallback, useEffect } from "react";
+import { scanFiles } from "@/lib/fileScanner";
 
 type FileUploadProps = {
   onFilesChange: (files: File[]) => void;
@@ -34,10 +35,9 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
   }, [files, targetFileName, onTargetFileFound]);
 
-  const handleFiles = useCallback(
-    (newFiles: FileList | null) => {
-      if (newFiles && newFiles.length > 0) {
-        const newFilesArray = Array.from(newFiles);
+  const processFiles = useCallback(
+    (newFilesArray: File[]) => {
+      if (newFilesArray.length > 0) {
         const firstFile = newFilesArray[0];
 
         if ((firstFile as any).webkitRelativePath) {
@@ -53,6 +53,15 @@ const FileUpload: React.FC<FileUploadProps> = ({
       }
     },
     [onFilesChange]
+  );
+
+  const handleFiles = useCallback(
+    (newFiles: FileList | null) => {
+      if (newFiles && newFiles.length > 0) {
+        processFiles(Array.from(newFiles));
+      }
+    },
+    [processFiles]
   );
 
   const clearFiles = useCallback(() => {
@@ -78,11 +87,23 @@ const FileUpload: React.FC<FileUploadProps> = ({
     e.stopPropagation();
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    handleFiles(e.dataTransfer.files);
+
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      try {
+        const scannedFiles = await scanFiles(e.dataTransfer.items);
+        processFiles(scannedFiles);
+      } catch (error) {
+        console.error("Error scanning files:", error);
+        // Fallback to standard files property if scanning fails
+        handleFiles(e.dataTransfer.files);
+      }
+    } else {
+      handleFiles(e.dataTransfer.files);
+    }
   };
 
   return (
@@ -115,9 +136,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Your data will be processed locally and never uploaded.
               </p>
-              <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-500">
-                Folder upload is not supported via drag & drop. <br /> Please
-                click to select.
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Drag & drop your folder here or click to select.
               </p>
               <input
                 id="file-upload"

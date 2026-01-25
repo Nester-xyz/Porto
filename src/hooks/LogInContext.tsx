@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { ValidateUser } from "../lib/auth/validateUser";
 import { LogInContextType } from "../types/login.type";
 import { RateLimitedAgent } from "@/lib/rateLimit/RateLimitedAgent";
+import { initOAuth } from "@/lib/auth/oauth";
+import { Agent } from "@atproto/api";
 
 // Create context with a default value
 export const LogInContext = createContext<LogInContextType>({
@@ -24,6 +26,20 @@ export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const validate = async () => {
       if (!agent) {
+        // Try OAuth first
+        try {
+          const oauthSession = await initOAuth();
+          if (oauthSession) {
+            const baseAgent = new Agent(oauthSession);
+            const rateLimitedAgent = new RateLimitedAgent(baseAgent as any);
+            setAgent(rateLimitedAgent);
+            setLoggedIn(true);
+            return;
+          }
+        } catch (error) {
+          console.error("OAuth validation failed:", error);
+        }
+
         try {
           const { agent: baseAgent } = await ValidateUser(loggedIn);
 

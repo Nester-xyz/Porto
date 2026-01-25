@@ -1,0 +1,14 @@
+
+> porto@0.0.0 dev
+> vite
+
+
+  VITE v5.4.9  ready in 288 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+4:28:55 AM [vite] hmr update /src/hooks/LogInContext.tsx, /src/index.css
+4:29:20 AM [vite] hmr update /src/hooks/LogInContext.tsx, /src/index.css

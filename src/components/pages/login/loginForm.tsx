@@ -6,6 +6,7 @@ import { CgDanger } from "react-icons/cg";
 import { BsFillInfoCircleFill } from "react-icons/bs";
 import { HiEye, HiEyeSlash } from "react-icons/hi2";
 import { Button } from "@/components/ui/button";
+import { signInWithOAuth } from "@/lib/auth/oauth";
 
 interface LoginFormProps {
   onLogin: (userName: string, password: string) => void;
@@ -150,6 +151,27 @@ const LoginForm = ({
               disabled={!userName || !password || isLoading} // Disables button if fields are empty
             >
               Login
+            </Button>
+
+            <div className="relative flex py-5 items-center">
+              <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+              <span className="flex-shrink-0 mx-4 text-gray-400">Or</span>
+              <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+            </div>
+
+            <Button
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+              type="button"
+              onClick={() => {
+                if (!userName) {
+                  alert("Please enter your username (handle) first.");
+                  return;
+                }
+                signInWithOAuth(userName);
+              }}
+              disabled={isLoading}
+            >
+              Sign in with Bluesky (OAuth)
             </Button>
 
             <button type="submit" disabled={isLoading}></button>
