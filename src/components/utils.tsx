@@ -486,66 +486,150 @@ export const fetchEmbedUrlCard = async (
   agent: any
 ): Promise<any> => {
   try {
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(
-      url
-    )}`;
-    const response = await fetch(proxyUrl);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const html = await response.text();
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const isYouTube =
+      hostname === "youtu.be" ||
+      hostname.endsWith("youtube.com") ||
+      hostname.endsWith("youtube-nocookie.com");
+
+    const uploadThumb = async (
+      imageUrl: string,
+      opts: { useProxy?: boolean } = {}
+    ): Promise<BlobRef | undefined> => {
+      try {
+        const candidates = [imageUrl];
+        if (opts.useProxy) {
+          candidates.push(
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(imageUrl)}`
+          );
+        }
+
+        let imageResponse: Response | null = null;
+        for (const candidate of candidates) {
+          try {
+            const res = await fetch(candidate);
+            if (res.ok) {
+              imageResponse = res;
+              break;
+            }
+          } catch {
+            // Try next candidate.
+          }
+        }
+
+        if (!imageResponse) return undefined;
+
+        const imageBlob = await imageResponse.blob();
+        const file = new File([imageBlob], "thumb", {
+          type: imageBlob.type || "image/jpeg",
+        });
+        const compressed = await recompressImageIfNeeded(file);
+        const buffer = await compressed.arrayBuffer();
+        const uint8Array = new Uint8Array(buffer);
+
+        const uploadedThumb = await agent.uploadBlob(uint8Array, {
+          encoding: compressed.type,
+        });
+        return uploadedThumb?.data?.blob;
+      } catch (error) {
+        console.warn(`Failed to fetch or upload thumbnail: ${error}`);
+        return undefined;
+      }
+    };
+
+    // YouTube is frequently blocked by HTML fetch proxies; use oEmbed via noembed.
+    if (isYouTube) {
+      const noembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(
+        url
+      )}`;
+      const noembedRes = await fetch(noembedUrl);
+      if (!noembedRes.ok) return null;
+      const data = await noembedRes.json();
+      if (data?.error) return null;
+
+      const title = String(data?.title || "").trim() || parsedUrl.hostname;
+      const providerName = String(data?.provider_name || "YouTube").trim();
+      const authorName = String(data?.author_name || "").trim();
+      const description = authorName
+        ? `${providerName} · ${authorName}`
+        : providerName;
+      const imageUrl = typeof data?.thumbnail_url === "string" ? data.thumbnail_url : null;
+
+      const externalEmbed: any = {
+        $type: "app.bsky.embed.external",
+        external: {
+          uri: url,
+          title,
+          description,
+        },
+      };
+
+      if (imageUrl) {
+        const thumb = await uploadThumb(imageUrl);
+        if (thumb) externalEmbed.external.thumb = thumb;
+      }
+
+      return externalEmbed;
+    }
+
+    // Generic OpenGraph fall-back (proxy HTML to avoid CORS on arbitrary sites).
+    const fetchHtml = async (target: string): Promise<string | null> => {
+      // Try direct fetch first (often works in extension context), then proxy.
+      try {
+        const direct = await fetch(target, {
+          headers: { Accept: "text/html,*/*" },
+        });
+        if (direct.ok) return await direct.text();
+      } catch {
+        // Ignore and fall back to proxy.
+      }
+
+      try {
+        const proxied = await fetch(
+          `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`
+        );
+        if (proxied.ok) return await proxied.text();
+      } catch {
+        // Ignore.
+      }
+      return null;
+    };
+
+    const html = await fetchHtml(url);
+    if (!html) return null;
     const doc = new DOMParser().parseFromString(html, "text/html");
 
-    const title =
+    const titleRaw =
       doc.querySelector('meta[property="og:title"]')?.getAttribute("content") ||
       doc.querySelector("title")?.textContent ||
       "";
-    const description =
+    const descriptionRaw =
       doc
         .querySelector('meta[property="og:description"]')
         ?.getAttribute("content") ||
       doc.querySelector('meta[name="description"]')?.getAttribute("content") ||
       "";
-    const imageUrl = doc
-      .querySelector('meta[property="og:image"]')
-      ?.getAttribute("content");
+    const imageUrl =
+      doc
+        .querySelector('meta[property="og:image"]')
+        ?.getAttribute("content") || null;
 
-    if (!title || !description) {
-      return null;
-    }
-
-    let thumbBlob: BlobRef | undefined = undefined;
-    if (imageUrl) {
-      try {
-        const imageResponse = await fetch(
-          `https://api.allorigins.win/raw?url=${encodeURIComponent(imageUrl)}`
-        );
-        if (imageResponse.ok) {
-          const imageBlob = await imageResponse.blob();
-          const imageBuffer = await imageBlob.arrayBuffer();
-          const uint8Array = new Uint8Array(imageBuffer);
-
-          const uploadedThumb = await agent.uploadBlob(uint8Array, {
-            encoding: imageBlob.type,
-          });
-          if (uploadedThumb) {
-            thumbBlob = uploadedThumb.data.blob;
-          }
-        }
-      } catch (error) {
-        console.warn(`Failed to fetch or upload thumbnail: ${error}`);
-      }
-    }
+    const title = String(titleRaw || "").trim() || parsedUrl.hostname;
+    const description = String(descriptionRaw || "").trim() || parsedUrl.hostname;
 
     const externalEmbed: any = {
       $type: "app.bsky.embed.external",
       external: {
         uri: url,
-        title: title,
-        description: description,
+        title,
+        description,
       },
     };
 
-    if (thumbBlob) {
-      externalEmbed.external.thumb = thumbBlob;
+    if (imageUrl) {
+      const thumb = await uploadThumb(imageUrl, { useProxy: true });
+      if (thumb) externalEmbed.external.thumb = thumb;
     }
 
     return externalEmbed;

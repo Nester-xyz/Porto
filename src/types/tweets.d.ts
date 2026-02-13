@@ -1,11 +1,18 @@
 export interface Entities {
-  urls?: [
-    {
-      url: string;
-      expanded_url: string;
-      display_url: string;
-    },
-  ];
+  urls?: Array<{
+    url: string;
+    expanded_url?: string;
+    display_url?: string;
+  }>;
+  // Tweets with attached media often represent the "pic.twitter.com" / "pic.x.com"
+  // link via entities.media instead of entities.urls.
+  media?: Array<{
+    url: string;
+    expanded_url?: string;
+    display_url?: string;
+  }>;
+  // Other entity keys exist in archives (user_mentions, hashtags, etc). Keep this loose.
+  [key: string]: unknown;
 }
 
 export interface TMedia {

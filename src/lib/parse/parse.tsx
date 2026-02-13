@@ -71,7 +71,13 @@ export const sortTweetsWithDateRange = (
       );
     });
 
-export async function cleanTweetText(tweetFullText: string): Promise<string> {
+export async function cleanTweetText(
+  tweetFullText: string,
+  entities?: {
+    urls?: Array<{ url?: string; expanded_url?: string }>;
+    media?: Array<{ url?: string; expanded_url?: string }>;
+  } | null
+): Promise<string> {
   let newText = tweetFullText;
   const urls: string[] = [];
   URI.withinString(tweetFullText, (url) => {
@@ -79,7 +85,18 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
     return url;
   });
 
+  const entityExpansions = new Map<string, string>();
+  for (const item of entities?.urls ?? []) {
+    if (item?.url && item?.expanded_url) entityExpansions.set(item.url, item.expanded_url);
+  }
+  for (const item of entities?.media ?? []) {
+    if (item?.url && item?.expanded_url) entityExpansions.set(item.url, item.expanded_url);
+  }
+
   async function resolveShortURL(url: string) {
+    const fromEntities = entityExpansions.get(url);
+    if (fromEntities) return fromEntities;
+
     try {
       const response = await fetch(url, {
         method: "HEAD",
