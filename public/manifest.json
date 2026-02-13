@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Porto - Import Tweets to Bluesky",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "Easily import Tweets to Bluesky with few clicks",
   "action": {
     "default_icon": {
