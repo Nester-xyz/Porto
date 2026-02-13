@@ -81,8 +81,28 @@ export class RateLimitedAgent {
   }
 
   async getPdsHost() {
-    const { aud } = await this.oauthSession.getTokenInfo(false);
-    return new URL(aud).host;
+    // Prefer the active OAuth token audience when possible, but fall back to
+    // the authoritative DID doc returned by getSession().
+    try {
+      const { aud } = await this.oauthSession.getTokenInfo(false);
+      if (typeof aud === "string" && aud.length > 0) {
+        if (aud.startsWith("did:web:")) {
+          return aud.replace(/^did:web:/, "");
+        }
+        return new URL(aud).host;
+      }
+    } catch {
+      // Ignore and fall back to DID doc lookup below.
+    }
+
+    const { data } = await this.agent.com.atproto.server.getSession({});
+    const pdsService = data.didDoc?.service?.find(
+      (service) => service.type === "AtprotoPersonalDataServer"
+    );
+    if (!pdsService?.serviceEndpoint) {
+      throw new Error("Unable to determine PDS host from DID document");
+    }
+    return new URL(pdsService.serviceEndpoint).host;
   }
 
   async signOut() {
