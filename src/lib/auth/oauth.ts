@@ -19,6 +19,7 @@ const DEV_OAUTH_REDIRECT_URI =
 const OAUTH_SCOPE = "atproto transition:generic transition:email";
 const OAUTH_RESPONSE_MODE = "query" as const;
 const CLIENT_NAME = "Porto - Import Tweets to Bluesky";
+export const OAUTH_LAST_SUB_STORAGE_KEY = "porto.oauth.lastSub";
 
 let oauthClient: BrowserOAuthClient | null = null;
 let oauthClientKey: string | null = null;
@@ -160,10 +161,40 @@ const launchWebAuthFlow = async (url: string): Promise<string> =>
     );
   });
 
+const readStoredLastSub = (): string | null => {
+  const sub = localStorage.getItem(OAUTH_LAST_SUB_STORAGE_KEY);
+  if (!sub) return null;
+  const normalized = sub.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
 export const restoreOAuthSession = async (): Promise<OAuthSession | null> => {
   const { client } = getOAuthClient();
-  const restored = await client.initRestore(false);
-  return restored?.session ?? null;
+
+  try {
+    const restored = await client.initRestore();
+    if (restored?.session) {
+      localStorage.setItem(OAUTH_LAST_SUB_STORAGE_KEY, restored.session.sub);
+      return restored.session;
+    }
+  } catch (error) {
+    console.warn("Primary OAuth restore failed, trying fallback restore:", error);
+  }
+
+  const fallbackSub = readStoredLastSub();
+  if (!fallbackSub) {
+    return null;
+  }
+
+  try {
+    const restored = await client.restore(fallbackSub);
+    localStorage.setItem(OAUTH_LAST_SUB_STORAGE_KEY, restored.sub);
+    return restored;
+  } catch (error) {
+    console.warn("Fallback OAuth restore failed, clearing stored session key:", error);
+    localStorage.removeItem(OAUTH_LAST_SUB_STORAGE_KEY);
+    return null;
+  }
 };
 
 export const signInWithOAuth = async (
@@ -180,5 +211,14 @@ export const signInWithOAuth = async (
     redirect_uri: redirectUri,
   });
 
-  return session;
+  localStorage.setItem(OAUTH_LAST_SUB_STORAGE_KEY, session.sub);
+
+  try {
+    const restoredSession = await client.restore(session.sub, false);
+    localStorage.setItem(OAUTH_LAST_SUB_STORAGE_KEY, restoredSession.sub);
+    return restoredSession;
+  } catch (error) {
+    localStorage.removeItem(OAUTH_LAST_SUB_STORAGE_KEY);
+    throw error;
+  }
 };

@@ -3,7 +3,11 @@ import { Agent } from "@atproto/api";
 import { OAuthSession } from "@atproto/oauth-client-browser";
 import { LogInContextType } from "../types/login.type";
 import { RateLimitedAgent } from "@/lib/rateLimit/RateLimitedAgent";
-import { restoreOAuthSession, signInWithOAuth } from "@/lib/auth/oauth";
+import {
+  OAUTH_LAST_SUB_STORAGE_KEY,
+  restoreOAuthSession,
+  signInWithOAuth,
+} from "@/lib/auth/oauth";
 
 const syncAccountSnapshot = async (agent: Agent) => {
   const { data } = await agent.com.atproto.server.getSession({});
@@ -16,7 +20,14 @@ const buildRateLimitedAgent = async (
   oauthSession: OAuthSession
 ): Promise<RateLimitedAgent> => {
   const baseAgent = new Agent(oauthSession);
-  await syncAccountSnapshot(baseAgent);
+  try {
+    await syncAccountSnapshot(baseAgent);
+  } catch (error) {
+    console.warn(
+      "Unable to sync account snapshot, continuing with active OAuth session:",
+      error
+    );
+  }
   return new RateLimitedAgent(baseAgent, oauthSession);
 };
 
@@ -65,6 +76,7 @@ export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.removeItem("handle");
       localStorage.removeItem("did");
       localStorage.removeItem("emailConfirmed");
+      localStorage.removeItem(OAUTH_LAST_SUB_STORAGE_KEY);
       setLoggedIn(false);
       setAgent(null);
       setIsLoading(false);

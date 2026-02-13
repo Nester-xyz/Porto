@@ -48,6 +48,12 @@ Optional build-time overrides:
 - `VITE_BSKY_OAUTH_DEV_CLIENT_ID`
 - `VITE_BSKY_OAUTH_DEV_REDIRECT_URI`
 
+OAuth session behavior:
+
+- Session should persist across popup closes and browser restarts.
+- Local unpacked testing uses a dev OAuth metadata URL.
+- Re-login is expected only after explicit sign-out, token revoke/invalid session, or cleared browser extension storage.
+
 ### Safe Rollout / Revert
 
 1. Work from a branch and open a PR instead of pushing directly to `main`.
