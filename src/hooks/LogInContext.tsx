@@ -1,48 +1,117 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import { ValidateUser } from "../lib/auth/validateUser";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { Agent } from "@atproto/api";
+import { OAuthSession } from "@atproto/oauth-client-browser";
 import { LogInContextType } from "../types/login.type";
 import { RateLimitedAgent } from "@/lib/rateLimit/RateLimitedAgent";
+import { restoreOAuthSession, signInWithOAuth } from "@/lib/auth/oauth";
 
-// Create context with a default value
+const syncAccountSnapshot = async (agent: Agent) => {
+  const { data } = await agent.com.atproto.server.getSession({});
+  localStorage.setItem("handle", data.handle);
+  localStorage.setItem("did", data.did);
+  localStorage.setItem("emailConfirmed", String(Boolean(data.emailConfirmed)));
+};
+
+const buildRateLimitedAgent = async (
+  oauthSession: OAuthSession
+): Promise<RateLimitedAgent> => {
+  const baseAgent = new Agent(oauthSession);
+  await syncAccountSnapshot(baseAgent);
+  return new RateLimitedAgent(baseAgent, oauthSession);
+};
+
 export const LogInContext = createContext<LogInContextType>({
   loggedIn: false,
+  isLoading: true,
   setLoggedIn: () => {},
-  signOut: () => {},
+  signIn: async () => {},
+  signOut: async () => {},
   agent: null,
 });
 
 export const LogInProvider = ({ children }: { children: React.ReactNode }) => {
   const [loggedIn, setLoggedIn] = useState<boolean>(false);
-  const [agent, setAgent] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [agent, setAgent] = useState<RateLimitedAgent | null>(null);
 
-  const signOut = () => {
-    // Add your signOut logic here
-    setLoggedIn(false);
-    setAgent(null);
-  };
+  const hydrateSession = useCallback(async (oauthSession: OAuthSession) => {
+    const rateLimitedAgent = await buildRateLimitedAgent(oauthSession);
+    setAgent(rateLimitedAgent);
+    setLoggedIn(true);
+  }, []);
+
+  const signIn = useCallback(
+    async (identifier: string) => {
+      setIsLoading(true);
+      try {
+        const oauthSession = await signInWithOAuth(identifier);
+        await hydrateSession(oauthSession);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [hydrateSession]
+  );
+
+  const signOut = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      if (agent) {
+        await agent.signOut();
+      }
+    } catch (error) {
+      console.error("Sign out failed:", error);
+    } finally {
+      localStorage.removeItem("handle");
+      localStorage.removeItem("did");
+      localStorage.removeItem("emailConfirmed");
+      setLoggedIn(false);
+      setAgent(null);
+      setIsLoading(false);
+    }
+  }, [agent]);
 
   useEffect(() => {
-    const validate = async () => {
-      if (!agent) {
-        try {
-          const { agent: baseAgent } = await ValidateUser(loggedIn);
+    let active = true;
 
-          // Wrap the base agent with RateLimitedAgent
-          const rateLimitedAgent = new RateLimitedAgent(baseAgent);
+    const restoreSession = async () => {
+      setIsLoading(true);
+      try {
+        const oauthSession = await restoreOAuthSession();
+        if (!oauthSession) {
+          if (active) {
+            setLoggedIn(false);
+            setAgent(null);
+          }
+          return;
+        }
 
-          setAgent(rateLimitedAgent);
-        } catch (error) {
-          console.error("Validation failed:", error);
-          signOut();
+        if (!active) return;
+        await hydrateSession(oauthSession);
+      } catch (error) {
+        console.error("OAuth restore failed:", error);
+        if (active) {
+          setLoggedIn(false);
+          setAgent(null);
+        }
+      } finally {
+        if (active) {
+          setIsLoading(false);
         }
       }
     };
 
-    validate();
-  }, [agent]);
+    void restoreSession();
+
+    return () => {
+      active = false;
+    };
+  }, [hydrateSession]);
 
   return (
-    <LogInContext.Provider value={{ loggedIn, signOut, agent, setLoggedIn }}>
+    <LogInContext.Provider
+      value={{ loggedIn, isLoading, signIn, signOut, agent, setLoggedIn }}
+    >
       {children}
     </LogInContext.Provider>
   );

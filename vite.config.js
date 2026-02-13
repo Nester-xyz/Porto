@@ -15,6 +15,7 @@ export default defineConfig({
       input: {
         background: "src/background.tsx",
         main: resolve(__dirname, "index.html"),
+        welcome: resolve(__dirname, "welcome.html"),
       },
       output: {
         entryFileNames: "[name].js",

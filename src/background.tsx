@@ -2,12 +2,22 @@
 
 let windowId: number | null = null;
 
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === "install") {
+    chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
+  }
+});
+
 chrome.action.onClicked.addListener(async () => {
   if (windowId !== null) {
-    const window = await chrome.windows.get(windowId);
-    if (window) {
-      chrome.windows.update(windowId, { focused: true });
-      return;
+    try {
+      const window = await chrome.windows.get(windowId);
+      if (window) {
+        chrome.windows.update(windowId, { focused: true });
+        return;
+      }
+    } catch {
+      windowId = null;
     }
   }
 
