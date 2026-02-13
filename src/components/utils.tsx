@@ -71,7 +71,7 @@ export const parseTweetsFile = (content: string): Tweet[] => {
 };
 
 export const isQuote = (tweets: Tweet[], id: string) => {
-  const twitterUrlRegex = /^https:\/\/twitter\.com\//;
+  const twitterUrlRegex = /^https:\/\/(twitter|x)\.com\//;
 
   const tweet = tweets.find((tweet) => tweet.tweet.id === id);
   if (!tweet) throw new Error(`Tweet with id ${id} not found`);
@@ -80,7 +80,9 @@ export const isQuote = (tweets: Tweet[], id: string) => {
   if (!urls) return false;
   if (urls.length < 0) return false;
 
-  const isQuoted = urls.find((url) => twitterUrlRegex.test(url.expanded_url));
+  const isQuoted = urls.find((url) =>
+    twitterUrlRegex.test(String(url.expanded_url ?? ""))
+  );
   return isQuoted ? true : false;
 };
 
@@ -488,10 +490,18 @@ export const fetchEmbedUrlCard = async (
   try {
     const parsedUrl = new URL(url);
     const hostname = parsedUrl.hostname.toLowerCase();
-    const isYouTube =
-      hostname === "youtu.be" ||
-      hostname.endsWith("youtube.com") ||
-      hostname.endsWith("youtube-nocookie.com");
+    const noembedAllowedHosts = [
+      "youtu.be",
+      "youtube.com",
+      "youtube-nocookie.com",
+      "vimeo.com",
+      "soundcloud.com",
+      "spotify.com",
+      "open.spotify.com",
+    ];
+    const shouldTryNoembed = noembedAllowedHosts.some(
+      (allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`)
+    );
 
     const uploadThumb = async (
       imageUrl: string,
@@ -538,8 +548,8 @@ export const fetchEmbedUrlCard = async (
       }
     };
 
-    // YouTube is frequently blocked by HTML fetch proxies; use oEmbed via noembed.
-    if (isYouTube) {
+    // Some media providers are frequently blocked by HTML fetch proxies; use oEmbed via noembed.
+    if (shouldTryNoembed) {
       const noembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(
         url
       )}`;
@@ -566,7 +576,7 @@ export const fetchEmbedUrlCard = async (
       };
 
       if (imageUrl) {
-        const thumb = await uploadThumb(imageUrl);
+        const thumb = await uploadThumb(imageUrl, { useProxy: true });
         if (thumb) externalEmbed.external.thumb = thumb;
       }
 
@@ -647,7 +657,7 @@ export function checkPastHandles(
 
   for (const handle of twitterHandles) {
     const pastHandlePattern = new RegExp(
-      `^https://twitter.com/${handle}/status/(\\d+)$`
+      `^https://(?:twitter|x)\\.com/${handle}/status/(\\d+)$`
     );
     if (pastHandlePattern.test(url)) return true;
   }

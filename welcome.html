@@ -3,129 +3,276 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon512.png" />
     <title>Welcome to Porto</title>
     <style>
+      /* ── Design tokens aligned with shadcn/ui index.css ── */
       :root {
-        color-scheme: light;
-        --bg: #f4f7fb;
-        --card: #ffffff;
-        --text: #0f172a;
-        --muted: #475569;
-        --primary: #0284c7;
-        --primary-hover: #0369a1;
-        --ring: rgba(2, 132, 199, 0.3);
+        --background: 0 0% 100%;
+        --foreground: 224 71.4% 4.1%;
+        --card: 0 0% 100%;
+        --card-foreground: 224 71.4% 4.1%;
+        --primary: 220.9 39.3% 11%;
+        --primary-foreground: 210 20% 98%;
+        --secondary: 220 14.3% 95.9%;
+        --secondary-foreground: 220.9 39.3% 11%;
+        --muted-foreground: 220 8.9% 46.1%;
+        --border: 220 13% 91%;
+        --ring: 224 71.4% 4.1%;
+        --radius: 0.5rem;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --background: 224 71.4% 4.1%;
+          --foreground: 210 20% 98%;
+          --card: 224 71.4% 4.1%;
+          --card-foreground: 210 20% 98%;
+          --primary: 210 20% 98%;
+          --primary-foreground: 220.9 39.3% 11%;
+          --secondary: 215 27.9% 16.9%;
+          --secondary-foreground: 210 20% 98%;
+          --muted-foreground: 217.9 10.6% 64.9%;
+          --border: 215 27.9% 16.9%;
+          --ring: 216 12.2% 83.9%;
+        }
       }
 
       * {
         box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
 
       body {
-        margin: 0;
         min-height: 100vh;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: linear-gradient(180deg, #e8f2ff 0%, var(--bg) 45%);
-        color: var(--text);
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
         display: grid;
         place-items: center;
         padding: 24px;
+        -webkit-font-smoothing: antialiased;
       }
 
+      /* ── Card — matches card.tsx (rounded-xl border shadow) ── */
       .card {
-        width: min(680px, 100%);
-        background: var(--card);
-        border-radius: 16px;
-        padding: 28px;
-        box-shadow: 0 20px 48px rgba(15, 23, 42, 0.12);
+        width: min(480px, 100%);
+        background: hsl(var(--card));
+        color: hsl(var(--card-foreground));
+        border: 1px solid hsl(var(--border));
+        border-radius: 12px;
+        box-shadow:
+          0 1px 3px 0 rgba(0, 0, 0, 0.06),
+          0 1px 2px -1px rgba(0, 0, 0, 0.06);
+        overflow: hidden;
+        animation: card-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+
+      @keyframes card-up {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ── Header with icon ── */
+      .card-header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        padding: 32px 24px 0;
+      }
+
+      .logo {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        box-shadow:
+          0 1px 3px rgba(0, 0, 0, 0.08),
+          0 4px 12px rgba(0, 0, 0, 0.05);
       }
 
       h1 {
-        margin: 0 0 12px;
-        font-size: clamp(26px, 5vw, 38px);
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        text-align: center;
       }
 
-      p {
-        margin: 0;
-        color: var(--muted);
-        line-height: 1.6;
+      /* ── Content ── */
+      .card-content {
+        padding: 20px 24px 24px;
       }
 
-      .list {
-        margin: 20px 0 0;
-        padding-left: 20px;
-        color: var(--text);
-      }
-
-      .list li {
-        margin: 8px 0;
-      }
-
-      .actions {
-        margin-top: 24px;
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-
-      .button {
-        border: none;
-        border-radius: 10px;
-        padding: 11px 16px;
-        cursor: pointer;
-        font-weight: 600;
+      .subtitle {
         font-size: 14px;
+        color: hsl(var(--muted-foreground));
+        line-height: 1.6;
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      /* ── Steps list ── */
+      .steps {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+
+      .step {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        font-size: 13.5px;
+        line-height: 1.5;
+        color: hsl(var(--card-foreground));
+      }
+
+      .step-number {
+        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: hsl(var(--secondary));
+        color: hsl(var(--secondary-foreground));
+        font-size: 12px;
+        font-weight: 600;
+        display: grid;
+        place-items: center;
+      }
+
+      .step-text {
+        padding-top: 2px;
+      }
+
+      /* ── Buttons — matches button.tsx variants ── */
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 40px;
+        border-radius: var(--radius);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
         text-decoration: none;
       }
 
-      .button-primary {
-        background: var(--primary);
-        color: #fff;
+      .btn:active {
+        transform: scale(0.98);
       }
 
-      .button-primary:hover {
-        background: var(--primary-hover);
-      }
-
-      .button-primary:focus-visible {
-        outline: 3px solid var(--ring);
+      .btn:focus-visible {
+        outline: 2px solid hsl(var(--ring));
         outline-offset: 2px;
       }
 
-      .button-secondary {
-        color: var(--text);
-        background: #e2e8f0;
+      /* Primary — bg-primary text-primary-foreground shadow hover:bg-primary/90 */
+      .btn-primary {
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
       }
 
-      .button-secondary:hover {
-        background: #cbd5e1;
+      .btn-primary:hover {
+        background: hsl(var(--primary) / 0.9);
       }
 
-      @media (max-width: 560px) {
-        .card {
-          padding: 20px;
+      /* Secondary — bg-secondary text-secondary-foreground hover:bg-secondary/80 */
+      .btn-secondary {
+        background: hsl(var(--secondary));
+        color: hsl(var(--secondary-foreground));
+      }
+
+      .btn-secondary:hover {
+        background: hsl(var(--secondary) / 0.8);
+      }
+
+      /* ── Responsive ── */
+      @media (max-width: 480px) {
+        .card-header {
+          padding: 24px 20px 0;
+        }
+        .card-content {
+          padding: 16px 20px 20px;
         }
       }
     </style>
   </head>
   <body>
     <main class="card">
-      <h1>Welcome to Porto</h1>
-      <p>
-        Porto now uses Bluesky OAuth for a safer sign-in flow. You will no longer
-        need to paste an app password.
-      </p>
-      <ul class="list">
-        <li>Click the extension icon any time to open Porto.</li>
-        <li>Sign in with your Bluesky handle in the OAuth window.</li>
-        <li>Import tweets from your X archive as before.</li>
-      </ul>
-      <div class="actions">
-        <button id="open-porto" class="button button-primary">
-          Open Porto
-        </button>
-        <button id="close-tab" class="button button-secondary">Close</button>
+      <div class="card-header">
+        <img class="logo" src="icon.png" alt="Porto logo" />
+        <h1>Welcome to Porto</h1>
+      </div>
+
+      <div class="card-content">
+        <p class="subtitle">
+          Porto now uses Bluesky OAuth for a safer sign-in flow. You will no
+          longer need to paste an app password.
+        </p>
+
+        <ol class="steps">
+          <li class="step">
+            <span class="step-number">1</span>
+            <span class="step-text"
+              >Click the extension icon any time to open Porto.</span
+            >
+          </li>
+          <li class="step">
+            <span class="step-number">2</span>
+            <span class="step-text"
+              >Sign in with your Bluesky handle in the OAuth window.</span
+            >
+          </li>
+          <li class="step">
+            <span class="step-number">3</span>
+            <span class="step-text"
+              >Import tweets from your X archive as before.</span
+            >
+          </li>
+        </ol>
+
+        <div class="actions">
+          <button id="open-porto" class="btn btn-primary">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M15 3h6v6" />
+              <path d="M10 14 21 3" />
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            </svg>
+            Open Porto
+          </button>
+          <button id="close-tab" class="btn btn-secondary">Close Tab</button>
+        </div>
       </div>
     </main>
+
     <script type="module">
       const openPortoButton = document.getElementById("open-porto");
       const closeButton = document.getElementById("close-tab");
