@@ -2,3 +2,5 @@ dist/
 node_modules/
 dist.zip
 .DS_Store
+.env.local
+.env.*.local
