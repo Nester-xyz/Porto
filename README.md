@@ -11,14 +11,13 @@ Step 5: Proceed, minimize the window, and let the magic happen! <br/>
 
 ---
 
-## OAuth Setup (Maintainers)
+## OAuth Setup for Developers
 
-Porto now uses Bluesky OAuth (no app-password login). The extension is
-configured with this client metadata URL by default:
+Porto uses Bluesky OAuth. The extension is configured with this client metadata URL by default:
 
 `https://nester-xyz.github.io/Porto/oauth-client-metadata.json`
 
-To keep OAuth working:
+Use this checklist when setting up or updating OAuth:
 
 1. Host `oauth-client-metadata.json` publicly over HTTPS (GitHub Pages is the default).
    This repo includes `.github/workflows/oauth-metadata-pages.yml` to publish it.
@@ -32,7 +31,7 @@ To keep OAuth working:
 6. Verify the metadata endpoint after deployment:
    - `curl -i https://nester-xyz.github.io/Porto/oauth-client-metadata.json`
    - Expect `HTTP/2 200` and `Content-Type: application/json`.
-7. Local unpacked extension testing needs a dev OAuth profile:
+7. For local unpacked extension testing, use a dev OAuth profile:
    - Host a dev metadata JSON at your own HTTPS URL.
    - Keep that JSON `client_id` exactly equal to the hosted URL.
    - Keep `redirect_uris` equal to your unpacked extension callback from
@@ -41,33 +40,17 @@ To keep OAuth working:
      - `VITE_BSKY_OAUTH_DEV_CLIENT_ID=<your-hosted-dev-metadata-url>`
      - `VITE_BSKY_OAUTH_DEV_REDIRECT_URI=<your-unpacked-extension-callback-url>`
 
-Optional build-time overrides:
+Optional build-time OAuth overrides:
 
 - `VITE_BSKY_OAUTH_CLIENT_ID`
 - `VITE_BSKY_OAUTH_REDIRECT_URI`
 - `VITE_BSKY_OAUTH_DEV_CLIENT_ID`
 - `VITE_BSKY_OAUTH_DEV_REDIRECT_URI`
 
-OAuth session behavior:
+Expected OAuth session behavior:
 
 - Session should persist across popup closes and browser restarts.
-- Local unpacked testing uses a dev OAuth metadata URL.
 - Re-login is expected only after explicit sign-out, token revoke/invalid session, or cleared browser extension storage.
-
-### Safe Rollout / Revert
-
-1. Work from a branch and open a PR instead of pushing directly to `main`.
-2. Before merge, run:
-   - `npm run build`
-   - `npm run test -- --run`
-3. After merge, verify both workflows:
-   - `.github/workflows/release.yml`
-   - `.github/workflows/oauth-metadata-pages.yml`
-4. If OAuth breaks after merge, immediately revert on `main`:
-   - `git checkout main`
-   - `git pull`
-   - `git revert <bad_commit_sha>`
-   - `git push origin main`
 
 ---
 
