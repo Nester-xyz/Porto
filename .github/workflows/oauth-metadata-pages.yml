@@ -1,0 +1,89 @@
+name: Publish OAuth Client Metadata
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - oauth-client-metadata.json
+      - .github/workflows/oauth-metadata-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare Pages artifact
+        run: |
+          mkdir -p _site
+          cp oauth-client-metadata.json _site/oauth-client-metadata.json
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>Porto OAuth Metadata</title>
+            </head>
+            <body>
+              <p>
+                OAuth client metadata:
+                <a href="./oauth-client-metadata.json">oauth-client-metadata.json</a>
+              </p>
+            </body>
+          </html>
+          HTML
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Verify metadata endpoint
+        run: |
+          URL="https://nester-xyz.github.io/Porto/oauth-client-metadata.json"
+          ATTEMPTS=20
+          DELAY_SECONDS=6
+
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            headers_file=$(mktemp)
+            status_code=$(
+              curl -sS -o /dev/null -D "$headers_file" -w "%{http_code}" "$URL"
+            )
+            content_type=$(
+              awk 'BEGIN { IGNORECASE = 1 } /^content-type:/ { print tolower($0); exit }' "$headers_file" | tr -d '\r'
+            )
+
+            if [ "$status_code" = "200" ] && echo "$content_type" | grep -q "application/json"; then
+              echo "Metadata endpoint is healthy: $status_code / $content_type"
+              exit 0
+            fi
+
+            echo "Attempt $attempt/$ATTEMPTS failed. Status: $status_code, Content-Type: ${content_type:-missing}"
+            sleep "$DELAY_SECONDS"
+          done
+
+          echo "Metadata endpoint check failed for $URL"
+          exit 1

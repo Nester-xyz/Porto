@@ -1,6 +1,6 @@
 import imageCompression from "browser-image-compression";
 import { parse } from "node-html-parser";
-import AtpAgent, { AppBskyActorProfile, BlobRef, RichText } from "@atproto/api";
+import { AppBskyActorProfile, BlobRef } from "@atproto/api";
 import { TEmbeddedImage, Tweet } from "@/types/tweets";
 import { TDateRange, TFileState } from "@/types/render";
 import he from "he";
@@ -320,6 +320,7 @@ export const importXProfileToBsky = async (
     const avatarBlob = await uploadImage(profileJson!.profile.avatar.url);
 
     const updatedProfile: AppBskyActorProfile.Record = {
+      $type: "app.bsky.actor.profile",
       displayName: accountJson.username,
       description: profileJson!.profile.description.bio,
       banner: headerBlob!,
@@ -327,7 +328,7 @@ export const importXProfileToBsky = async (
     };
 
     // Update profile
-    const result = await agent.upsertProfile((existing) => {
+    await agent.upsertProfile((existing) => {
       const merged = { ...existing, ...updatedProfile };
       return merged;
     });

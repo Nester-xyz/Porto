@@ -1,0 +1,14 @@
+{
+  "client_id": "https://nester-xyz.github.io/Porto/oauth-client-metadata.json",
+  "client_name": "Porto - Import Tweets to Bluesky",
+  "client_uri": "https://nester-xyz.github.io/Porto",
+  "redirect_uris": [
+    "https://ckilhjdflnaakopknngigiggfpnjaaop.chromiumapp.org/oauth2"
+  ],
+  "scope": "atproto transition:generic transition:email",
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "application_type": "web",
+  "dpop_bound_access_tokens": true
+}

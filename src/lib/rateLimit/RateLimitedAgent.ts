@@ -1,10 +1,14 @@
-import AtpAgent from "@atproto/api";
-export class RateLimitedAgent {
-  public agent: AtpAgent;
-  private waitingForRateLimit: boolean = false;
+import { Agent } from "@atproto/api";
+import { OAuthSession } from "@atproto/oauth-client-browser";
 
-  constructor(agent: AtpAgent) {
+export class RateLimitedAgent {
+  public agent: Agent;
+  private waitingForRateLimit: boolean = false;
+  private oauthSession: OAuthSession;
+
+  constructor(agent: Agent, oauthSession: OAuthSession) {
     this.agent = agent;
+    this.oauthSession = oauthSession;
   }
 
   private async handleRateLimit(error: any): Promise<void> {
@@ -48,16 +52,12 @@ export class RateLimitedAgent {
     }
   }
 
-  async uploadBlob(...args: Parameters<typeof AtpAgent.prototype.uploadBlob>) {
+  async uploadBlob(...args: Parameters<typeof Agent.prototype.uploadBlob>) {
     return this.call(() => this.agent.uploadBlob(...args));
   }
 
-  async post(...args: Parameters<typeof AtpAgent.prototype.post>) {
+  async post(...args: Parameters<typeof Agent.prototype.post>) {
     return this.call(() => this.agent.post(...args));
-  }
-
-  async login(...args: Parameters<typeof AtpAgent.prototype.login>) {
-    return this.call(() => this.agent.login(...args));
   }
 
   get com() {
@@ -65,9 +65,7 @@ export class RateLimitedAgent {
   }
 
   async getServiceAuth(
-    ...args: Parameters<
-      typeof AtpAgent.prototype.com.atproto.server.getServiceAuth
-    >
+    ...args: Parameters<typeof Agent.prototype.com.atproto.server.getServiceAuth>
   ) {
     return this.call(() =>
       this.agent.com.atproto.server.getServiceAuth(...args)
@@ -75,10 +73,19 @@ export class RateLimitedAgent {
   }
 
   get session() {
-    return this.agent.session;
+    return { did: this.oauthSession.did };
   }
 
-  get dispatchUrl() {
-    return this.agent.dispatchUrl;
+  get did() {
+    return this.oauthSession.did;
+  }
+
+  async getPdsHost() {
+    const { aud } = await this.oauthSession.getTokenInfo(false);
+    return new URL(aud).host;
+  }
+
+  async signOut() {
+    await this.oauthSession.signOut();
   }
 }

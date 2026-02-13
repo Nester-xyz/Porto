@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BLUESKY_USERNAME } from "@/lib/constant";
+import { getBlueskyProfileUrl } from "@/lib/constant";
 import { Render3Props } from "@/types/render";
 import { CheckCircle } from "lucide-react";
 import { Tweet } from "@/types/tweets";
@@ -90,12 +90,7 @@ const RenderStep3: React.FC<Render3Props> = ({
             Import More Tweets
           </Button>
           <Button
-            onClick={() =>
-              window.open(
-                `https://bsky.app/profile/${BLUESKY_USERNAME}.bsky.social`,
-                "_blank"
-              )
-            }
+            onClick={() => window.open(getBlueskyProfileUrl(), "_blank")}
             className="flex-1 dark:text-white bg-blue-600 hover:bg-blue-700"
           >
             Open Bluesky

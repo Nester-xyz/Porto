@@ -5,8 +5,6 @@ import {
   cleanTweetText,
   isPostValid,
   isQuote,
-  parseTweetsFile,
-  sortTweetsWithDateRange,
 } from "@/lib/parse/parse";
 import { TMedia, TEmbeddedImage, Tweet, VideoVariant } from "@/types/tweets";
 import { processTweetsData } from "@/lib/parse/processTweets";
@@ -15,8 +13,8 @@ import {
   fetchEmbedUrlCard,
   getEmbeddedUrlAndRecord,
 } from "@/components/utils";
-import { ApiDelay, BLUESKY_USERNAME } from "@/lib/constant";
-import AtpAgent, { AppBskyVideoDefs, BlobRef, RichText } from "@atproto/api";
+import { ApiDelay } from "@/lib/constant";
+import { AtpAgent, AppBskyVideoDefs, BlobRef, RichText } from "@atproto/api";
 import { findFileFromMap } from "@/lib/parse/parse";
 
 export const filePassableType = (fileType: string = ""): string => {
@@ -99,7 +97,7 @@ export const useUpload = ({
     const tweetCreatedAt = new Date(tweet.created_at).toISOString();
 
     const postRecord = {
-      $type: "app.bsky.feed.post",
+      $type: "app.bsky.feed.post" as const,
       text: rt.text,
       facets: rt.facets,
       createdAt: tweetCreatedAt,
@@ -119,11 +117,6 @@ export const useUpload = ({
     await new Promise((resolve) => setTimeout(resolve, ApiDelay)); // Throttle API calls
     try {
       const recordData = await agent?.post(postRecord);
-      const i = recordData.uri.lastIndexOf("/");
-      if (i > 0) {
-        const postRkey = recordData?.uri.split("/").pop();
-        const postUri = `https://bsky.app/profile/${BLUESKY_USERNAME}.bsky.social/post/${postRkey}`;
-      }
       validTweets[index].bsky = {
         uri: recordData.uri,
         cid: recordData.cid,
@@ -236,9 +229,10 @@ export const useUpload = ({
                 const videoFile = fileMap.get(videoFileName);
 
                 if (videoFile) {
+                  const pdsHost = await agent!.getPdsHost();
                   const { data: serviceAuth } =
                     await agent!.com.atproto.server.getServiceAuth({
-                      aud: `did:web:${agent!.dispatchUrl.host}`,
+                      aud: `did:web:${pdsHost}`,
                       lxm: "com.atproto.repo.uploadBlob",
                       exp: Date.now() / 1000 + 60 * 30, // 30 minutes
                     });
@@ -260,7 +254,7 @@ export const useUpload = ({
                   const uploadUrl = new URL(
                     "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo"
                   );
-                  uploadUrl.searchParams.append("did", agent!.session!.did);
+                  uploadUrl.searchParams.append("did", agent.did);
                   uploadUrl.searchParams.append("name", videoFileName);
 
                   let uploadResponse: any;

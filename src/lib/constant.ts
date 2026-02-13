@@ -1,9 +1,14 @@
 import { TDateRange, TFileState } from "@/types/render";
 
 export const ApiDelay = 2500;
-export const BLUESKY_USERNAME = localStorage.getItem("handle")?.split(".")[0];
 export const TWEETS_FILENAME = "tweets.js";
 export const TWEETS_MEDIA_FOLDER = "tweets_media";
+
+export const getBlueskyProfileUrl = () => {
+  const handle = localStorage.getItem("handle");
+  if (!handle) return "https://bsky.app";
+  return `https://bsky.app/profile/${handle}`;
+};
 
 export const initialFileState: TFileState = {
   files: null,
