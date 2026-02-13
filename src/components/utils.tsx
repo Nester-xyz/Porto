@@ -6,7 +6,8 @@ import { TDateRange, TFileState } from "@/types/render";
 import he from "he";
 import URI from "urijs";
 import { RateLimitedAgent } from "@/lib/rateLimit/RateLimitedAgent";
-const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
+// Bluesky image blob maxSize is 1,000,000 bytes (eg, embed thumbs, avatar, banner).
+const MAX_FILE_SIZE = 1_000_000;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3";
 
@@ -43,7 +44,7 @@ interface ProfileData {
 type BlobResponse = BlobRef;
 export const findFileFromMap = (
   fileMap: Map<string, File>,
-  fileName: string
+  fileName: string,
 ): File | null => {
   if (!fileMap || fileMap.size === 0) return null;
   const filePath = Array.from(fileMap.keys()).find((filePath) => {
@@ -81,14 +82,14 @@ export const isQuote = (tweets: Tweet[], id: string) => {
   if (urls.length < 0) return false;
 
   const isQuoted = urls.find((url) =>
-    twitterUrlRegex.test(String(url.expanded_url ?? ""))
+    twitterUrlRegex.test(String(url.expanded_url ?? "")),
   );
   return isQuoted ? true : false;
 };
 
 export const sortTweetsWithDateRange = (
   tweets: Tweet[],
-  dateRange: TDateRange
+  dateRange: TDateRange,
 ) =>
   tweets
     .filter((tweet) => {
@@ -149,7 +150,7 @@ export async function cleanTweetText(tweetFullText: string): Promise<string> {
 }
 
 export async function bulkDeleteBskyPost(
-  rateLimitedAgent: RateLimitedAgent
+  rateLimitedAgent: RateLimitedAgent,
 ): Promise<{
   totalPosts: number;
   deleted: number;
@@ -199,7 +200,7 @@ export async function bulkDeleteBskyPost(
                   error instanceof Error ? error : new Error(String(error)),
               });
             }
-          })
+          }),
         );
       }
 
@@ -222,7 +223,7 @@ export async function bulkDeleteBskyPost(
 
 export const importXProfileToBsky = async (
   rateLimitedAgent: RateLimitedAgent,
-  fileState: TFileState
+  fileState: TFileState,
 ) => {
   const agent = rateLimitedAgent.agent;
   if (!agent) {
@@ -234,7 +235,7 @@ export const importXProfileToBsky = async (
       Array.from(fileState.files || []).map((file) => [
         file.webkitRelativePath,
         file,
-      ])
+      ]),
     );
 
     // Find the profile.js file in the correct path structure
@@ -284,8 +285,6 @@ export const importXProfileToBsky = async (
       profileJson = null; // Set to null on failure
     }
 
-    console.log("profileJson", profileJson);
-
     // const { profile } = profileJson;
 
     const uploadImage = async (url: string): Promise<BlobResponse | null> => {
@@ -309,7 +308,7 @@ export const importXProfileToBsky = async (
           new Uint8Array(newArrayBuffer),
           {
             encoding: compressedFile.type,
-          }
+          },
         );
         return uploadResponse.data.blob;
       } catch (error) {
@@ -342,7 +341,7 @@ export const importXProfileToBsky = async (
 export function getMergeEmbed(
   images: TEmbeddedImage[] = [],
   embeddedVideo: {} | null = null,
-  record: {} | null = null
+  record: {} | null = null,
 ): {} | null {
   let mediaEmbed: any = null;
 
@@ -377,7 +376,7 @@ export function getMergeEmbed(
 }
 
 export async function recompressImageIfNeeded(
-  imageData: File | Blob | ArrayBuffer | string
+  imageData: File | Blob | ArrayBuffer | string,
 ): Promise<File> {
   const options = {
     maxSizeMB: 0.95, // Corresponds to just under 1MB
@@ -417,7 +416,7 @@ async function fetchOembed(url: string): Promise<any> {
     // 2. Fetch data from the discovered oEmbed endpoint
     const oembedData = await fetchOEmbedFromDiscoveredEndpoint(
       endpointUrl,
-      url
+      url,
     );
     if (oembedData) {
       return oembedData;
@@ -427,7 +426,7 @@ async function fetchOembed(url: string): Promise<any> {
 }
 
 async function discoverOEmbedEndpointFromHTML(
-  url: string
+  url: string,
 ): Promise<string | null> {
   try {
     const response = await fetch(url, {
@@ -437,7 +436,7 @@ async function discoverOEmbedEndpointFromHTML(
     });
     if (!response.ok) {
       console.warn(
-        `Failed to fetch HTML for oEmbed discovery: ${response.status}`
+        `Failed to fetch HTML for oEmbed discovery: ${response.status}`,
       );
       return null;
     }
@@ -460,7 +459,7 @@ async function discoverOEmbedEndpointFromHTML(
 }
 async function fetchOEmbedFromDiscoveredEndpoint(
   endpoint: string,
-  originalUrl: string
+  originalUrl: string,
 ): Promise<any | null> {
   try {
     // Append format and url parameters to the endpoint URL
@@ -485,8 +484,167 @@ async function fetchOEmbedFromDiscoveredEndpoint(
 
 export const fetchEmbedUrlCard = async (
   url: string,
-  agent: any
+  agent: any,
 ): Promise<any> => {
+  const clampGraphemes = (input: string, max: number): string => {
+    const chars = Array.from(input);
+    if (chars.length <= max) return input;
+    return chars.slice(0, max).join("").trim();
+  };
+
+  const uniq = (items: Array<string | null | undefined>) => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of items) {
+      const val = typeof raw === "string" ? raw.trim() : "";
+      if (!val) continue;
+      if (seen.has(val)) continue;
+      seen.add(val);
+      out.push(val);
+    }
+    return out;
+  };
+
+  const absolutizeUrl = (candidate: string, base: URL): string | null => {
+    const raw = String(candidate || "").trim();
+    if (!raw) return null;
+    if (raw.startsWith("data:")) return raw;
+    try {
+      if (raw.startsWith("//")) return `${base.protocol}${raw}`;
+      return new URL(raw, base).href;
+    } catch {
+      return null;
+    }
+  };
+
+  const createPlaceholderThumbFile = async (params: {
+    hostname: string;
+    title: string;
+  }): Promise<File | undefined> => {
+    try {
+      const width = 1200;
+      const height = 630;
+
+      const hash = (str: string) => {
+        let h = 2166136261;
+        for (const ch of str) {
+          h ^= ch.codePointAt(0) ?? 0;
+          h = Math.imul(h, 16777619);
+        }
+        return h >>> 0;
+      };
+
+      const hue = hash(params.hostname) % 360;
+      const bgA = `hsl(${hue} 70% 30%)`;
+      const bgB = `hsl(${(hue + 35) % 360} 70% 18%)`;
+
+      const hasOffscreen =
+        typeof OffscreenCanvas !== "undefined" &&
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        typeof (OffscreenCanvas as any) === "function";
+
+      const canvas: any = hasOffscreen
+        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          new (OffscreenCanvas as any)(width, height)
+        : typeof document !== "undefined"
+          ? document.createElement("canvas")
+          : null;
+
+      if (!canvas) return undefined;
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx: CanvasRenderingContext2D | null = canvas.getContext("2d");
+      if (!ctx) return undefined;
+
+      const grad = ctx.createLinearGradient(0, 0, width, height);
+      grad.addColorStop(0, bgA);
+      grad.addColorStop(1, bgB);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+
+      // Slight vignette for contrast.
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.fillRect(0, 0, width, height);
+
+      const pad = 72;
+      const maxTextWidth = width - pad * 2;
+
+      const drawWrappedText = (text: string, y: number) => {
+        const words = String(text || "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .split(" ")
+          .filter(Boolean);
+
+        const lines: string[] = [];
+        let line = "";
+        for (const w of words) {
+          const next = line ? `${line} ${w}` : w;
+          if (ctx.measureText(next).width <= maxTextWidth) {
+            line = next;
+            continue;
+          }
+          if (line) lines.push(line);
+          line = w;
+          if (lines.length >= 2) break;
+        }
+        if (line && lines.length < 2) lines.push(line);
+
+        const lineHeight = 66;
+        for (let i = 0; i < lines.length; i++) {
+          ctx.fillText(lines[i], pad, y + i * lineHeight);
+        }
+      };
+
+      ctx.textBaseline = "top";
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.font =
+        "700 64px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
+      ctx.fillText(params.hostname, pad, pad);
+
+      const title = clampGraphemes(params.title || "", 120);
+      if (title) {
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.font =
+          "500 56px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
+        drawWrappedText(title, pad + 120);
+      }
+
+      const blob: Blob | null = await (async () => {
+        // OffscreenCanvas has convertToBlob().
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (typeof (canvas as any).convertToBlob === "function") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return await (canvas as any).convertToBlob({
+            type: "image/jpeg",
+            quality: 0.86,
+          });
+        }
+
+        // HTMLCanvasElement has toBlob().
+        if (typeof (canvas as HTMLCanvasElement).toBlob === "function") {
+          return await new Promise<Blob | null>((resolve) =>
+            (canvas as HTMLCanvasElement).toBlob(
+              (b) => resolve(b),
+              "image/jpeg",
+              0.86,
+            ),
+          );
+        }
+        return null;
+      })();
+
+      if (!blob) return undefined;
+      return new File([blob], "thumb.jpg", {
+        type: blob.type || "image/jpeg",
+      });
+    } catch (error) {
+      console.warn(`Failed to generate fallback thumbnail: ${error}`);
+      return undefined;
+    }
+  };
+
   try {
     const parsedUrl = new URL(url);
     const hostname = parsedUrl.hostname.toLowerCase();
@@ -500,37 +658,51 @@ export const fetchEmbedUrlCard = async (
       "open.spotify.com",
     ];
     const shouldTryNoembed = noembedAllowedHosts.some(
-      (allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`)
+      (allowed) => hostname === allowed || hostname.endsWith(`.${allowed}`),
     );
 
     const uploadThumb = async (
       imageUrl: string,
-      opts: { useProxy?: boolean } = {}
+      opts: { useProxy?: boolean } = {},
     ): Promise<BlobRef | undefined> => {
       try {
+        if (!agent?.uploadBlob) return undefined;
+
         const candidates = [imageUrl];
-        if (opts.useProxy) {
+        if (opts.useProxy && !imageUrl.startsWith("data:")) {
           candidates.push(
-            `https://api.allorigins.win/raw?url=${encodeURIComponent(imageUrl)}`
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(imageUrl)}`,
           );
         }
 
-        let imageResponse: Response | null = null;
+        let imageBlob: Blob | null = null;
         for (const candidate of candidates) {
           try {
             const res = await fetch(candidate);
-            if (res.ok) {
-              imageResponse = res;
-              break;
+            if (!res.ok) continue;
+            const blob = await res.blob();
+            if (!blob || blob.size <= 0) continue;
+
+            // Avoid uploading obvious HTML/JSON error bodies as "images".
+            const ct =
+              res.headers.get("content-type") || blob.type || "unknown";
+            if (
+              ct.includes("text/html") ||
+              ct.includes("application/json") ||
+              ct.includes("text/plain")
+            ) {
+              continue;
             }
+
+            imageBlob = blob;
+            break;
           } catch {
             // Try next candidate.
           }
         }
 
-        if (!imageResponse) return undefined;
+        if (!imageBlob) return undefined;
 
-        const imageBlob = await imageResponse.blob();
         const file = new File([imageBlob], "thumb", {
           type: imageBlob.type || "image/jpeg",
         });
@@ -548,44 +720,8 @@ export const fetchEmbedUrlCard = async (
       }
     };
 
-    // Some media providers are frequently blocked by HTML fetch proxies; use oEmbed via noembed.
-    if (shouldTryNoembed) {
-      const noembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(
-        url
-      )}`;
-      const noembedRes = await fetch(noembedUrl);
-      if (!noembedRes.ok) return null;
-      const data = await noembedRes.json();
-      if (data?.error) return null;
-
-      const title = String(data?.title || "").trim() || parsedUrl.hostname;
-      const providerName = String(data?.provider_name || "YouTube").trim();
-      const authorName = String(data?.author_name || "").trim();
-      const description = authorName
-        ? `${providerName} · ${authorName}`
-        : providerName;
-      const imageUrl = typeof data?.thumbnail_url === "string" ? data.thumbnail_url : null;
-
-      const externalEmbed: any = {
-        $type: "app.bsky.embed.external",
-        external: {
-          uri: url,
-          title,
-          description,
-        },
-      };
-
-      if (imageUrl) {
-        const thumb = await uploadThumb(imageUrl, { useProxy: true });
-        if (thumb) externalEmbed.external.thumb = thumb;
-      }
-
-      return externalEmbed;
-    }
-
-    // Generic OpenGraph fall-back (proxy HTML to avoid CORS on arbitrary sites).
     const fetchHtml = async (target: string): Promise<string | null> => {
-      // Try direct fetch first (often works in extension context), then proxy.
+      // Try direct fetch first (works if extension host_permissions are added later).
       try {
         const direct = await fetch(target, {
           headers: { Accept: "text/html,*/*" },
@@ -597,7 +733,7 @@ export const fetchEmbedUrlCard = async (
 
       try {
         const proxied = await fetch(
-          `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`
+          `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
         );
         if (proxied.ok) return await proxied.text();
       } catch {
@@ -606,58 +742,222 @@ export const fetchEmbedUrlCard = async (
       return null;
     };
 
-    const html = await fetchHtml(url);
-    if (!html) return null;
-    const doc = new DOMParser().parseFromString(html, "text/html");
-
-    const titleRaw =
-      doc.querySelector('meta[property="og:title"]')?.getAttribute("content") ||
-      doc.querySelector("title")?.textContent ||
-      "";
-    const descriptionRaw =
-      doc
-        .querySelector('meta[property="og:description"]')
-        ?.getAttribute("content") ||
-      doc.querySelector('meta[name="description"]')?.getAttribute("content") ||
-      "";
-    const imageUrl =
-      doc
-        .querySelector('meta[property="og:image"]')
-        ?.getAttribute("content") || null;
-
-    const title = String(titleRaw || "").trim() || parsedUrl.hostname;
-    const description = String(descriptionRaw || "").trim() || parsedUrl.hostname;
-
-    const externalEmbed: any = {
+    const baseExternalEmbed = (params: {
+      title: string;
+      description: string;
+    }) => ({
       $type: "app.bsky.embed.external",
       external: {
         uri: url,
-        title,
-        description,
+        title:
+          clampGraphemes(String(params.title || "").trim(), 200) || hostname,
+        description:
+          clampGraphemes(String(params.description || "").trim(), 300) ||
+          hostname,
       },
-    };
+    });
 
-    if (imageUrl) {
-      const thumb = await uploadThumb(imageUrl, { useProxy: true });
-      if (thumb) externalEmbed.external.thumb = thumb;
+    // Some media providers are frequently blocked by HTML fetch proxies; use oEmbed via noembed.
+    if (shouldTryNoembed) {
+      const noembedUrl = `https://noembed.com/embed?url=${encodeURIComponent(
+        url,
+      )}`;
+      const noembedRes = await fetch(noembedUrl);
+      if (!noembedRes.ok) {
+        return baseExternalEmbed({
+          title: parsedUrl.hostname,
+          description: url,
+        });
+      }
+      const data = await noembedRes.json();
+      if (data?.error) {
+        return baseExternalEmbed({
+          title: parsedUrl.hostname,
+          description: url,
+        });
+      }
+
+      const title = String(data?.title || "").trim() || parsedUrl.hostname;
+      const providerName = String(data?.provider_name || "").trim();
+      const authorName = String(data?.author_name || "").trim();
+      const description = authorName
+        ? `${providerName || parsedUrl.hostname} · ${authorName}`
+        : providerName || parsedUrl.hostname;
+      const imageUrl =
+        typeof data?.thumbnail_url === "string" ? data.thumbnail_url : null;
+
+      const externalEmbed: any = baseExternalEmbed({ title, description });
+
+      // Try provider thumbnail first, then fall back to generated thumb.
+      if (imageUrl) {
+        const absoluteImageUrl = absolutizeUrl(imageUrl, parsedUrl);
+        if (absoluteImageUrl) {
+          const thumb = await uploadThumb(absoluteImageUrl, { useProxy: true });
+          if (thumb) externalEmbed.external.thumb = thumb;
+        }
+      }
+
+      if (!externalEmbed.external.thumb) {
+        const placeholder = await createPlaceholderThumbFile({
+          hostname: parsedUrl.hostname,
+          title,
+        });
+        if (placeholder && agent?.uploadBlob) {
+          const compressed = await recompressImageIfNeeded(placeholder);
+          const buffer = await compressed.arrayBuffer();
+          const uploaded = await agent.uploadBlob(new Uint8Array(buffer), {
+            encoding: compressed.type,
+          });
+          if (uploaded?.data?.blob)
+            externalEmbed.external.thumb = uploaded.data.blob;
+        }
+      }
+
+      return externalEmbed;
+    }
+
+    // Generic OpenGraph fall-back (proxy HTML to avoid CORS on arbitrary sites).
+    const html = await fetchHtml(url);
+
+    let title =
+      parsedUrl.hostname || String(hostname || "").trim() || "External Link";
+    let description = parsedUrl.hostname;
+    let imageCandidates: string[] = [];
+
+    if (html) {
+      const root = parse(html);
+      const metaAll = (selector: string) =>
+        root
+          .querySelectorAll(selector)
+          .map((el) => el.getAttribute("content")?.trim())
+          .filter(Boolean) as string[];
+
+      const metaFirst = (selector: string) =>
+        root.querySelector(selector)?.getAttribute("content")?.trim() || "";
+
+      const titleRaw =
+        metaFirst('meta[property="og:title"]') ||
+        metaFirst('meta[name="twitter:title"]') ||
+        root.querySelector("title")?.textContent?.trim() ||
+        "";
+      const descriptionRaw =
+        metaFirst('meta[property="og:description"]') ||
+        metaFirst('meta[name="twitter:description"]') ||
+        metaFirst('meta[name="description"]') ||
+        "";
+
+      title = String(titleRaw || "").trim() || parsedUrl.hostname;
+      description = String(descriptionRaw || "").trim() || parsedUrl.hostname;
+
+      const iconLinks = root
+        .querySelectorAll("link")
+        .map((el) => {
+          const rel = (el.getAttribute("rel") || "").toLowerCase();
+          const href = el.getAttribute("href") || "";
+          return { rel, href };
+        })
+        .filter(({ href }) => Boolean(href));
+
+      const iconHrefs = iconLinks
+        .filter(({ rel }) => {
+          const relTokens = rel.split(/\s+/).filter(Boolean);
+          return (
+            relTokens.includes("apple-touch-icon") ||
+            relTokens.includes("apple-touch-icon-precomposed") ||
+            relTokens.includes("icon") ||
+            relTokens.includes("shortcut")
+          );
+        })
+        .map(({ href }) => href);
+
+      imageCandidates = uniq([
+        ...metaAll('meta[property="og:image:secure_url"]'),
+        ...metaAll('meta[property="og:image"]'),
+        ...metaAll('meta[name="twitter:image"]'),
+        ...metaAll('meta[name="twitter:image:src"]'),
+        ...metaAll('meta[property="twitter:image"]'),
+        ...metaAll('meta[itemprop="image"]'),
+        ...root
+          .querySelectorAll('link[rel="image_src"]')
+          .map((el) => el.getAttribute("href")),
+        ...iconHrefs,
+      ])
+        .map((c) => absolutizeUrl(c, parsedUrl))
+        .filter(Boolean) as string[];
+    }
+
+    // Always try a few predictable fallbacks, even if we can't fetch HTML.
+    const faviconIco = new URL("/favicon.ico", parsedUrl.origin).href;
+    const googleFavicon = `https://www.google.com/s2/favicons?sz=256&domain_url=${encodeURIComponent(
+      parsedUrl.origin,
+    )}`;
+    const ddgFavicon = `https://icons.duckduckgo.com/ip3/${encodeURIComponent(
+      parsedUrl.hostname,
+    )}.ico`;
+
+    const allCandidates = uniq([
+      ...imageCandidates,
+      faviconIco,
+      googleFavicon,
+      ddgFavicon,
+    ]);
+
+    const externalEmbed: any = baseExternalEmbed({ title, description });
+
+    for (const candidate of allCandidates.slice(0, 10)) {
+      const thumb = await uploadThumb(candidate, { useProxy: true });
+      if (thumb) {
+        externalEmbed.external.thumb = thumb;
+        break;
+      }
+    }
+
+    // Last resort: generate our own thumbnail so the embed consistently has a thumb.
+    if (!externalEmbed.external.thumb) {
+      const placeholder = await createPlaceholderThumbFile({
+        hostname: parsedUrl.hostname,
+        title,
+      });
+      if (placeholder && agent?.uploadBlob) {
+        const compressed = await recompressImageIfNeeded(placeholder);
+        const buffer = await compressed.arrayBuffer();
+        const uploaded = await agent.uploadBlob(new Uint8Array(buffer), {
+          encoding: compressed.type,
+        });
+        if (uploaded?.data?.blob)
+          externalEmbed.external.thumb = uploaded.data.blob;
+      }
     }
 
     return externalEmbed;
   } catch (error: any) {
     console.warn(`Error fetching embed URL card: ${error.message}`);
-    return null;
+    // Fallback: still return a minimal embed instead of dropping it entirely.
+    try {
+      const parsedUrl = new URL(url);
+      return {
+        $type: "app.bsky.embed.external",
+        external: {
+          uri: url,
+          title: parsedUrl.hostname,
+          description: parsedUrl.hostname,
+        },
+      };
+    } catch {
+      return null;
+    }
   }
 };
 
 export function checkPastHandles(
   twitterHandles: string[],
-  url: string
+  url: string,
 ): boolean {
   if (!url) return false;
 
   for (const handle of twitterHandles) {
     const pastHandlePattern = new RegExp(
-      `^https://(?:twitter|x)\\.com/${handle}/status/(\\d+)$`
+      `^https://(?:twitter|x)\\.com/${handle}/status/(\\d+)$`,
     );
     if (pastHandlePattern.test(url)) return true;
   }
@@ -667,7 +967,7 @@ export function checkPastHandles(
 export const getEmbeddedUrlAndRecord = (
   twitterHandles: string[],
   urls: any[],
-  tweets: Array<{ tweet: Record<string, string>; bsky?: any }>
+  tweets: Array<{ tweet: Record<string, string>; bsky?: any }>,
 ) => {
   if (!urls || urls.length === 0)
     return { embeddedUrl: null, embeddedRecord: null };
@@ -677,7 +977,7 @@ export const getEmbeddedUrlAndRecord = (
   if (checkPastHandles(twitterHandles, firstUrl)) {
     const statusId = firstUrl.split("/").pop();
     const existingTweet = tweets.find(
-      ({ tweet, bsky }) => tweet.id_str === statusId && bsky
+      ({ tweet, bsky }) => tweet.id_str === statusId && bsky,
     );
 
     if (existingTweet) {
