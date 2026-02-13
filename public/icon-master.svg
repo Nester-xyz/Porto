@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Porto app icon</title>
+  <desc id="desc">Centered Porto P monogram on a rounded blue gradient tile.</desc>
+  <defs>
+    <linearGradient id="bg" x1="14" y1="12" x2="114" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0EA5E9" />
+      <stop offset="1" stop-color="#2563EB" />
+    </linearGradient>
+    <linearGradient id="shine" x1="64" y1="8" x2="64" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.15" />
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="112" height="112" rx="30" fill="url(#bg)" />
+  <rect x="8" y="8" width="112" height="112" rx="30" fill="url(#shine)" />
+
+  <path
+    d="M32 25H64C82.225 25 97 39.775 97 58C97 76.225 82.225 91 64 91V96C64 102.627 58.627 108 52 108C40.954 108 32 99.046 32 88V25Z"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="10"
+    stroke-linecap="butt"
+    stroke-linejoin="round"
+  />
+</svg>
