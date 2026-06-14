@@ -26,7 +26,15 @@ const RenderStep2: React.FC<Render2Props> = ({
   const [isEmailConfirmed, setIsEmailConfirmed] = useState(true);
   const [tweetsWithVideos, setTweetsWithVideos] = useState<Tweet[]>([]);
 
-  const { isProcessing, progress, tweet_to_bsky, skippedVideos } = useUpload({
+  const {
+    isProcessing,
+    progress,
+    tweet_to_bsky,
+    skippedVideos,
+    currentTweetId,
+    importedCount,
+    skippedExistingCount,
+  } = useUpload({
     shareableData,
   });
 
@@ -38,7 +46,7 @@ const RenderStep2: React.FC<Render2Props> = ({
   useEffect(() => {
     if (validTweetsData) {
       const videoTweets = validTweetsData.filter(
-        (t) => t.tweet.extended_entities?.media?.[0]?.type === "video"
+        (t) => t.tweet.extended_entities?.media?.[0]?.type === "video",
       );
       setTweetsWithVideos(videoTweets);
     }
@@ -61,13 +69,13 @@ const RenderStep2: React.FC<Render2Props> = ({
 
   const toggleId = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
     );
   };
 
   const filteredTweets =
     validTweetsData?.filter((t) =>
-      t.tweet.full_text.toLowerCase().includes(query.toLowerCase())
+      t.tweet.full_text.toLowerCase().includes(query.toLowerCase()),
     ) || [];
 
   const displayTweets = filteredTweets.slice(0, visibleCount);
@@ -174,11 +182,20 @@ const RenderStep2: React.FC<Render2Props> = ({
       )}
 
       {isProcessing && (
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-          <div
-            className="bg-blue-600 h-2.5 rounded-full"
-            style={{ width: `${progress}%` }}
-          ></div>
+        <div className="space-y-2">
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+            <div
+              className="bg-blue-600 h-2.5 rounded-full"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>Current tweet ID: {currentTweetId ?? "starting..."}</p>
+            <p>Imported this run: {importedCount}</p>
+            {skippedExistingCount > 0 && (
+              <p>Skipped already imported tweets: {skippedExistingCount}</p>
+            )}
+          </div>
         </div>
       )}
 

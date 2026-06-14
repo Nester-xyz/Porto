@@ -1,11 +1,7 @@
-import { useMemo, useState, useCallback } from "react";
+import { useState } from "react";
 import { useLogInContext } from "./LogInContext";
 import { shareableData } from "@/types/render";
-import {
-  cleanTweetText,
-  isPostValid,
-  isQuote,
-} from "@/lib/parse/parse";
+import { cleanTweetText, isPostValid, isQuote } from "@/lib/parse/parse";
 import { TMedia, TEmbeddedImage, Tweet, VideoVariant } from "@/types/tweets";
 import { processTweetsData } from "@/lib/parse/processTweets";
 import {
@@ -15,7 +11,6 @@ import {
 } from "@/components/utils";
 import { ApiDelay } from "@/lib/constant";
 import { AtpAgent, AppBskyVideoDefs, BlobRef, RichText } from "@atproto/api";
-import { findFileFromMap } from "@/lib/parse/parse";
 
 export const filePassableType = (fileType: string = ""): string => {
   if (fileType === "png") return "image/png";
@@ -24,6 +19,37 @@ export const filePassableType = (fileType: string = ""): string => {
 };
 
 const MAX_POST_GRAPHEMES = 300;
+
+type ImportedPostRef = { uri: string; cid: string };
+type ImportCheckpoint = Record<string, ImportedPostRef>;
+
+const getImportCheckpointKey = (handle: string): string =>
+  `porto:import-checkpoint:${handle || "unknown"}`;
+
+const loadImportCheckpoint = (handle: string): ImportCheckpoint => {
+  try {
+    const rawCheckpoint = localStorage.getItem(getImportCheckpointKey(handle));
+    if (!rawCheckpoint) return {};
+
+    const parsedCheckpoint = JSON.parse(rawCheckpoint);
+    return parsedCheckpoint && typeof parsedCheckpoint === "object"
+      ? parsedCheckpoint
+      : {};
+  } catch (error) {
+    console.warn("Unable to read import checkpoint; starting fresh.", error);
+    return {};
+  }
+};
+
+const saveImportCheckpoint = (
+  handle: string,
+  checkpoint: ImportCheckpoint,
+): void => {
+  localStorage.setItem(
+    getImportCheckpointKey(handle),
+    JSON.stringify(checkpoint),
+  );
+};
 
 const countGraphemes = (text: string): number => {
   if (!("Segmenter" in Intl)) return Array.from(text).length;
@@ -106,7 +132,7 @@ const splitByWords = (text: string, maxGraphemes: number): string[] => {
 
 const cannotPost = (
   singleTweet: Tweet["tweet"],
-  tweetsArray: Tweet[]
+  tweetsArray: Tweet[],
 ): boolean => !isPostValid(singleTweet) || isQuote(tweetsArray, singleTweet.id);
 
 export const useUpload = ({
@@ -118,13 +144,14 @@ export const useUpload = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [skippedVideos, setSkippedVideos] = useState<Tweet["tweet"][]>([]);
-  const simulate = useMemo(() => true, []);
-
+  const [currentTweetId, setCurrentTweetId] = useState<string | null>(null);
+  const [importedCount, setImportedCount] = useState(0);
+  const [skippedExistingCount, setSkippedExistingCount] = useState(0);
   const { fileMap, dateRange, mediaLocation, tweetsLocation } = shareableData;
 
   const processMedia = async (
     media: TMedia,
-    tweetId: string
+    tweetId: string,
   ): Promise<TEmbeddedImage | null> => {
     if (media.type !== "photo") {
       return null;
@@ -145,16 +172,16 @@ export const useUpload = ({
     const blobRecord = await agent?.uploadBlob(uint8Array, {
       encoding: mimeType,
     });
-	    return {
-	      alt: "",
-	      image: {
-	        $type: "blob",
-	        ref: blobRecord?.data.blob.ref,
-	        mimeType: blobRecord?.data.blob.mimeType,
-	        size: blobRecord?.data.blob.size,
-	      },
-	    };
-	  };
+    return {
+      alt: "",
+      image: {
+        $type: "blob",
+        ref: blobRecord?.data.blob.ref,
+        mimeType: blobRecord?.data.blob.mimeType,
+        size: blobRecord?.data.blob.size,
+      },
+    };
+  };
 
   const postSingleRecord = async ({
     text,
@@ -213,9 +240,9 @@ export const useUpload = ({
     externalEmbed: any,
     replyTo: any,
     validTweets: any,
-    index: number
-  ) => {
-    if (!agent) return;
+    index: number,
+  ): Promise<boolean> => {
+    if (!agent) return false;
 
     const postText = await cleanTweetText(tweet.full_text, tweet.entities);
     const chunks = splitByWords(postText, MAX_POST_GRAPHEMES);
@@ -231,14 +258,14 @@ export const useUpload = ({
       replyTo,
     });
 
-    if (!rootRef) return;
+    if (!rootRef) return false;
 
     validTweets[index].bsky = {
       uri: rootRef.uri,
       cid: rootRef.cid,
     };
 
-    if (chunks.length <= 1) return;
+    if (chunks.length <= 1) return true;
 
     let parentRef = rootRef;
     for (let i = 1; i < chunks.length; i++) {
@@ -254,9 +281,11 @@ export const useUpload = ({
           parent: { uri: parentRef.uri, cid: parentRef.cid },
         },
       });
-      if (!continuation) break;
+      if (!continuation) return false;
       parentRef = continuation;
     }
+
+    return true;
   };
   const getXHandle = async () => {
     const findProfileFile = (fileName: string) => {
@@ -282,7 +311,7 @@ export const useUpload = ({
         .trim();
       const accountArray = JSON.parse(cleanContent);
       accountJson = accountArray[0].account; // Access the first account object
-    } catch (e) {
+    } catch {
       throw new Error("Failed to parse profile data from file");
     }
 
@@ -295,6 +324,9 @@ export const useUpload = ({
 
     setIsProcessing(true);
     setProgress(0);
+    setCurrentTweetId(null);
+    setImportedCount(0);
+    setSkippedExistingCount(0);
 
     try {
       const tweetsFile = fileMap.get(tweetsLocation!);
@@ -303,15 +335,15 @@ export const useUpload = ({
 
       const { tweets, validTweets } = await processTweetsData(
         tweetsFile,
-        dateRange
+        dateRange,
       );
 
       const filteredTweets = selectedIds
         ? validTweets.filter((t) => selectedIds.includes(t.tweet.id))
         : validTweets;
 
-      let importedTweet = 0;
       const handle = await getXHandle();
+      const importCheckpoint = loadImportCheckpoint(handle);
 
       const twitterHandles = [handle.length !== 0 ? handle : "whoisanku"];
       let videoUploadLimits: any | null = null;
@@ -319,6 +351,15 @@ export const useUpload = ({
       for (const [index, { tweet }] of filteredTweets.entries()) {
         try {
           setProgress(Math.round((index / filteredTweets.length) * 100));
+          setCurrentTweetId(tweet.id);
+
+          const checkpointedPost = importCheckpoint[tweet.id];
+          if (checkpointedPost) {
+            filteredTweets[index].bsky = checkpointedPost;
+            setSkippedExistingCount((count) => count + 1);
+            console.info(`Skipping already imported tweet ${tweet.id}`);
+            continue;
+          }
           if (cannotPost(tweet, tweets)) continue;
 
           const media = tweet.extended_entities?.media;
@@ -366,7 +407,7 @@ export const useUpload = ({
                         Authorization: `Bearer ${svc.token}`,
                         Accept: "application/json",
                       },
-                    }
+                    },
                   );
                   videoUploadLimits = await res.json().catch(() => null);
                 } catch (error) {
@@ -384,7 +425,7 @@ export const useUpload = ({
               const highQualityVariant = mediaItem.video_info?.variants.find(
                 (variant: VideoVariant) =>
                   variant.bitrate === "2176000" &&
-                  variant.content_type === "video/mp4"
+                  variant.content_type === "video/mp4",
               );
 
               if (highQualityVariant) {
@@ -407,19 +448,18 @@ export const useUpload = ({
                   // Protocol limit: app.bsky.embed.video maxSize is 100_000_000 bytes (~100MB).
                   const MAX_SINGLE_VIDEO_SIZE = 100 * 1024 * 1024;
 
-	                  // Check file size
-	                  if (videoFile.size > MAX_SINGLE_VIDEO_SIZE) {
-	                    throw new Error(
-	                      `File size (${(
-	                        videoFile.size /
-	                        (1024 * 1024)
-	                      ).toFixed(2)}MB) exceeds maximum allowed size of 100MB`
-	                    );
-	                  }
+                  // Check file size
+                  if (videoFile.size > MAX_SINGLE_VIDEO_SIZE) {
+                    throw new Error(
+                      `File size (${(videoFile.size / (1024 * 1024)).toFixed(
+                        2,
+                      )}MB) exceeds maximum allowed size of 100MB`,
+                    );
+                  }
 
                   // Prepare upload URL
                   const uploadUrl = new URL(
-                    "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo"
+                    "https://video.bsky.app/xrpc/app.bsky.video.uploadVideo",
                   );
                   uploadUrl.searchParams.append("did", agent.did);
                   uploadUrl.searchParams.append("name", uploadName);
@@ -441,7 +481,7 @@ export const useUpload = ({
 
                     const fileStream = videoFile.stream();
                     const uploadStream = fileStream.pipeThrough(
-                      progressTrackingStream
+                      progressTrackingStream,
                     );
 
                     interface ExtendedRequestInit extends RequestInit {
@@ -462,13 +502,13 @@ export const useUpload = ({
 
                     uploadResponse = await fetch(
                       uploadUrl.toString(),
-                      fetchOptions
+                      fetchOptions,
                     );
 
                     if (!uploadResponse.ok) {
                       const errorText = await uploadResponse.text();
                       throw new Error(
-                        `Upload failed: ${uploadResponse.status} - ${errorText}`
+                        `Upload failed: ${uploadResponse.status} - ${errorText}`,
                       );
                     }
 
@@ -477,7 +517,7 @@ export const useUpload = ({
                   } catch (error: any) {
                     if (error.message.includes("already_exists")) {
                       const errorData = JSON.parse(
-                        error.message.split(" - ")[1]
+                        error.message.split(" - ")[1],
                       );
 
                       jobStatus = {
@@ -524,7 +564,7 @@ export const useUpload = ({
             getEmbeddedUrlAndRecord(
               twitterHandles,
               tweet.entities?.urls || [],
-              filteredTweets as any
+              filteredTweets as any,
             );
 
           let replyTo: {} | null = null;
@@ -538,7 +578,7 @@ export const useUpload = ({
             tweets: Array<{
               tweet: Tweet["tweet"];
               bsky?: { uri: string; cid: string };
-            }>
+            }>,
           ): {
             root: {
               uri: string;
@@ -556,7 +596,7 @@ export const useUpload = ({
             if (
               !in_reply_to_screen_name ||
               !twitterHandles.some(
-                (handle) => handle === in_reply_to_screen_name
+                (handle) => handle === in_reply_to_screen_name,
               )
             ) {
               return null;
@@ -564,7 +604,7 @@ export const useUpload = ({
 
             // Find the immediate parent tweet
             const parent = tweets.find(
-              ({ tweet }) => tweet.id === in_reply_to_status_id
+              ({ tweet }) => tweet.id === in_reply_to_status_id,
             );
 
             // If no parent found, return null
@@ -576,7 +616,7 @@ export const useUpload = ({
             let root = parent;
             while (root?.tweet?.in_reply_to_status_id) {
               const nextRoot = tweets.find(
-                ({ tweet }) => tweet.id === root.tweet.in_reply_to_status_id
+                ({ tweet }) => tweet.id === root.tweet.in_reply_to_status_id,
               );
 
               if (!nextRoot) break;
@@ -606,7 +646,7 @@ export const useUpload = ({
                 in_reply_to_screen_name: tweet.in_reply_to_screen_name,
                 in_reply_to_status_id: tweet.in_reply_to_status_id,
               },
-              filteredTweets
+              filteredTweets,
             );
           }
           let externalEmbed = null;
@@ -619,7 +659,7 @@ export const useUpload = ({
               (url) =>
                 !url.startsWith("https://twitter.com") &&
                 !url.startsWith("https://x.com") &&
-                !url.startsWith("https://t.co/")
+                !url.startsWith("https://t.co/"),
             );
           }
 
@@ -643,11 +683,11 @@ export const useUpload = ({
                 try {
                   externalEmbed = await fetchEmbedUrlCard(
                     urlEntity.expanded_url,
-                    agent!.agent
+                    agent!.agent,
                   );
                 } catch (error: any) {
                   console.warn(
-                    `Error fetching embed URL card: ${error.message}`
+                    `Error fetching embed URL card: ${error.message}`,
                   );
                 }
               }
@@ -663,12 +703,12 @@ export const useUpload = ({
               }
             } catch (error: any) {
               console.warn(
-                `Error fetching embed URL card from full_text: ${error.message}`
+                `Error fetching embed URL card from full_text: ${error.message}`,
               );
             }
           }
 
-          await createPostRecord(
+          const didImport = await createPostRecord(
             tweet,
             embeddedImage,
             embeddedVideo,
@@ -676,10 +716,20 @@ export const useUpload = ({
             externalEmbed,
             replyTo,
             filteredTweets,
-            index
-          ).then(() => {
-            importedTweet++;
-          });
+            index,
+          );
+
+          const importedPost = filteredTweets[index].bsky;
+          if (didImport && importedPost) {
+            importCheckpoint[tweet.id] = importedPost;
+            saveImportCheckpoint(handle, importCheckpoint);
+            setImportedCount((count) => count + 1);
+            console.info(`Imported tweet ${tweet.id}`, importedPost);
+          } else {
+            console.warn(
+              `Tweet ${tweet.id} did not return a Bluesky post ref.`,
+            );
+          }
         } catch (error) {
           console.error(`Error processing tweet ${tweet.id}:`, error);
         }
@@ -688,6 +738,7 @@ export const useUpload = ({
       console.error("Error during import:", error);
     } finally {
       setIsProcessing(false);
+      setCurrentTweetId(null);
       setProgress(100);
     }
   };
@@ -697,5 +748,8 @@ export const useUpload = ({
     progress,
     tweet_to_bsky,
     skippedVideos,
+    currentTweetId,
+    importedCount,
+    skippedExistingCount,
   };
 };
