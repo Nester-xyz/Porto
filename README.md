@@ -1,4 +1,4 @@
-[Porto](https://chromewebstore.google.com/detail/porto-import-your-tweets/ckilhjdflnaakopknngigiggfpnjaaop) is an Open Source [donation](https://ko-fi.com/nesterdev) based tool that lets you import your Tweets (X posts) into Bluesky in few clicks through a Chrome Extension. It's build by [Ankit Bhandari](https://bsky.app/profile/anku.bsky.social), [Yogesh Aryal](https://bsky.app/profile/aryog.bsky.social) & [Adarsh Kunwar](https://bsky.app/profile/helloalex.bsky.social). 
+[Porto](https://chromewebstore.google.com/detail/porto-import-your-tweets/ckilhjdflnaakopknngigiggfpnjaaop) is an Open Source tool that lets you import your Tweets (X posts) into Bluesky in few clicks through a Chrome Extension. It's build by [Ankit Bhandari](https://bsky.app/profile/anku.bsky.social), [Yogesh Aryal](https://bsky.app/profile/aryog.bsky.social) & [Adarsh Kunwar](https://bsky.app/profile/helloalex.bsky.social). 
 
 ---
 
